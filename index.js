@@ -119,7 +119,7 @@ console.log('\n' + chalk.dim('Press ') + chalk.bold.red('Ctrl+C') + chalk.dim(' 
 console.log(chalk.yellow('⏳ Initializing server components...\n'));
 
 // Find jss binary
-const jssBin = join(__dirname, 'node_modules', 'javascript-solid-server', 'bin', 'jss.js');
+const jssBin = join(__dirname, 'node_modules', '.bin', 'jss');
 
 // Build jss arguments
 const jssArgs = [
@@ -136,7 +136,7 @@ if (!options.multiuser) {
 }
 
 // Start JSS
-const jss = spawn('node', [jssBin, ...jssArgs], {
+const jss = spawn(jssBin, jssArgs, {
   stdio: 'inherit',
   env: {
     ...process.env,
