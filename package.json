@@ -1,0 +1,42 @@
+{
+  "name": "jssd",
+  "version": "0.0.1",
+  "description": "JavaScript Solid Server Daemon - Just works, batteries included",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "jssd": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JavaScriptSolidServer/jssd.git"
+  },
+  "keywords": [
+    "solid",
+    "server",
+    "daemon",
+    "pod",
+    "linked-data",
+    "webid",
+    "semantic-web",
+    "rdf",
+    "ldp",
+    "solid-server"
+  ],
+  "author": "Melvin Carvalho",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/JavaScriptSolidServer/jssd/issues"
+  },
+  "homepage": "https://github.com/JavaScriptSolidServer/jssd#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "javascript-solid-server": "^0.0.79"
+  }
+}
