@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * JSSD - JavaScript Solid Server Daemon
+ * jspod - JavaScript Solid Pod
  * Just works, batteries included
  */
 
@@ -39,7 +39,7 @@ for (let i = 0; i < args.length; i++) {
   } else if (arg === '--help') {
     console.log(chalk.cyan(`
 ╔═══════════════════════════════════════════════════════════════════╗
-║                         JSSD - Help                               ║
+║                         jspod - Help                               ║
 ╚═══════════════════════════════════════════════════════════════════╝
 `));
     console.log(chalk.white('Usage:'));
@@ -81,14 +81,14 @@ if (!existsSync(options.root)) {
 console.log(chalk.cyan(`
 ╔═══════════════════════════════════════════════════════════════════╗
 ║                                                                   ║
-║                 ${chalk.bold.white('     ██╗███████╗███████╗██████╗ ')}                  ║
-║                 ${chalk.bold.white('     ██║██╔════╝██╔════╝██╔══██╗')}                  ║
-║                 ${chalk.bold.white('     ██║███████╗███████╗██║  ██║')}                  ║
-║                 ${chalk.bold.white('██   ██║╚════██║╚════██║██║  ██║')}                  ║
-║                 ${chalk.bold.white('╚█████╔╝███████║███████║██████╔╝')}                  ║
-║                 ${chalk.bold.white(' ╚════╝ ╚══════╝╚══════╝╚═════╝ ')}                  ║
+║                  ${chalk.bold.white('██╗███████╗██████╗  ██████╗ ██████╗ ')}             ║
+║                  ${chalk.bold.white('██║██╔════╝██╔══██╗██╔═══██╗██╔══██╗')}             ║
+║                  ${chalk.bold.white('██║███████╗██████╔╝██║   ██║██║  ██║')}             ║
+║             ${chalk.bold.white('██   ██║╚════██║██╔═══╝ ██║   ██║██║  ██║')}             ║
+║             ${chalk.bold.white('╚█████╔╝███████║██║     ╚██████╔╝██████╔╝')}             ║
+║              ${chalk.bold.white('╚════╝ ╚══════╝╚═╝      ╚═════╝ ╚═════╝ ')}             ║
 ║                                                                   ║
-║             ${chalk.bold.yellow('JavaScript Solid Server - Daemon Edition')}              ║
+║                       ${chalk.bold.yellow('JavaScript Solid Pod')}                        ║
 ║                  ${chalk.dim('Batteries included, just works')}                   ║
 ║                                                                   ║
 ╚═══════════════════════════════════════════════════════════════════╝

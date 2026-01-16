@@ -1,17 +1,17 @@
-# JSSD - JavaScript Solid Server Daemon
+# jspod - JavaScript Solid Pod
 
 > **Just works**. Batteries included. Zero configuration.
 
-[![npm version](https://img.shields.io/npm/v/jssd.svg)](https://www.npmjs.com/package/jssd)
+[![npm version](https://img.shields.io/npm/v/jspod.svg)](https://www.npmjs.com/package/jspod)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**JSSD** is the easiest way to run a [Solid](https://solidproject.org) server. It's a thin wrapper around [JavaScriptSolidServer](https://github.com/JavaScriptSolidServer/JavaScriptSolidServer) with sensible defaults and a beautiful CLI.
+**jspod** is the easiest way to run a [Solid](https://solidproject.org) server. It's a thin wrapper around [JavaScriptSolidServer](https://github.com/JavaScriptSolidServer/JavaScriptSolidServer) with sensible defaults and a beautiful CLI.
 
 ## 🚀 Quick Start
 
 ```bash
 # Run instantly with npx (no installation required!)
-npx jssd
+npx jspod
 
 # That's it! Your Solid server is running at http://localhost:3000
 ```
@@ -20,7 +20,7 @@ npx jssd
 
 ### 🎯 Just Works
 - **Zero configuration** - Smart defaults for everything
-- **One command** - `npx jssd` and you're running
+- **One command** - `npx jspod` and you're running
 - **Beautiful CLI** - Gorgeous terminal output that makes you smile
 
 ### 🔋 Batteries Included
@@ -39,21 +39,21 @@ Built on [JavaScriptSolidServer](https://github.com/JavaScriptSolidServer/JavaSc
 ### No Installation (Recommended)
 
 ```bash
-npx jssd
+npx jspod
 ```
 
 ### Global Installation
 
 ```bash
-npm install -g jssd
-jssd
+npm install -g jspod
+jspod
 ```
 
 ### Local Installation
 
 ```bash
-npm install jssd
-npx jssd
+npm install jspod
+npx jspod
 ```
 
 ## 🎮 Usage
@@ -62,16 +62,16 @@ npx jssd
 
 ```bash
 # Start with defaults (port 3000, single-user)
-jssd
+jspod
 
 # Custom port
-jssd --port 8080
+jspod --port 8080
 
 # Custom data directory
-jssd --root /var/pods
+jspod --root /var/pods
 
 # Multi-user mode
-jssd --multiuser
+jspod --multiuser
 ```
 
 ### CLI Options
@@ -96,7 +96,7 @@ export TOKEN_SECRET="your-secret-key-here"
 export NODE_ENV="production"
 
 # Run server
-jssd
+jspod
 ```
 
 ### Production Deployment
@@ -115,8 +115,8 @@ jssd
 3. **Run as a service**
    ```bash
    # Example systemd service
-   sudo systemctl enable jssd
-   sudo systemctl start jssd
+   sudo systemctl enable jspod
+   sudo systemctl start jspod
    ```
 
 4. **Set up backups**
@@ -125,7 +125,7 @@ jssd
 
 5. **Monitor logs**
    ```bash
-   jssd --verbose > jssd.log 2>&1
+   jspod --verbose > jspod.log 2>&1
    ```
 
 ## 🏃 Quickstart Examples
@@ -134,7 +134,7 @@ jssd
 
 ```bash
 # Start your personal Solid pod
-jssd
+jspod
 
 # Visit http://localhost:3000 in your browser
 # Register with passkey, start storing data!
@@ -144,7 +144,7 @@ jssd
 
 ```bash
 # Run a server for multiple users
-jssd --multiuser --port 443 --root /var/solid-pods
+jspod --multiuser --port 443 --root /var/solid-pods
 
 # Users can register and get their own pod space
 ```
@@ -153,26 +153,26 @@ jssd --multiuser --port 443 --root /var/solid-pods
 
 ```bash
 # Run on custom port for development
-jssd --port 8080 --root ./dev-data
+jspod --port 8080 --root ./dev-data
 ```
 
-## 🆚 JSSD vs JavaScriptSolidServer
+## 🆚 jspod vs JavaScriptSolidServer
 
-| Feature | JavaScriptSolidServer | JSSD |
+| Feature | JavaScriptSolidServer | jspod |
 |---------|----------------------|------|
-| Installation | `npm install -g javascript-solid-server` | `npx jssd` |
+| Installation | `npm install -g javascript-solid-server` | `npx jspod` |
 | Configuration | Config file required | Smart defaults |
-| Commands | `jss start [options]` | `jssd` |
+| Commands | `jss start [options]` | `jspod` |
 | First run | 5+ steps | 1 command |
 | Use case | Power users, customization | Quick start, demos |
 
 **When to use JavaScriptSolidServer**: Production deployments, custom configuration, advanced features
 
-**When to use JSSD**: Quick demos, local development, "just want it to work"
+**When to use jspod**: Quick demos, local development, "just want it to work"
 
 ## 🛠️ How It Works
 
-JSSD is a thin wrapper that:
+jspod is a thin wrapper that:
 
 1. Provides sensible defaults
 2. Creates beautiful CLI output
@@ -181,7 +181,7 @@ JSSD is a thin wrapper that:
 
 ### Enabled Features
 
-Under the hood, JSSD runs JavaScriptSolidServer with these options:
+Under the hood, jspod runs JavaScriptSolidServer with these options:
 
 | Feature | JSS Flag | Description |
 |---------|----------|-------------|
@@ -207,7 +207,7 @@ Under the hood, JSSD runs JavaScriptSolidServer with these options:
 
 **Step 1**: Start the server
 ```bash
-npx jssd
+npx jspod
 ```
 
 **Step 2**: Open your browser to `http://localhost:3000`
@@ -223,7 +223,7 @@ npx jssd
 - Your data stays on your server
 
 **Troubleshooting**:
-- **Port in use?** Run `jssd --port 3001`
+- **Port in use?** Run `jspod --port 3001`
 - **Data location?** Check `./pod-data` directory
 - **Can't register?** Make sure your browser supports WebAuthn (Chrome, Firefox, Safari, Edge all work)
 
@@ -235,7 +235,7 @@ npx jssd
 
 ### Resources
 
-- **JSSD**: https://github.com/JavaScriptSolidServer/jssd
+- **jspod**: https://github.com/JavaScriptSolidServer/jspod
 - **JavaScriptSolidServer**: https://github.com/JavaScriptSolidServer/JavaScriptSolidServer
 - **Solid Project**: https://solidproject.org
 - **Solid Spec**: https://solidproject.org/TR/protocol
@@ -243,7 +243,7 @@ npx jssd
 
 ## 🤝 Contributing
 
-Contributions welcome! JSSD is intentionally simple - we want to keep it that way.
+Contributions welcome! jspod is intentionally simple - we want to keep it that way.
 
 **Philosophy**:
 - Simple over complex
@@ -258,12 +258,12 @@ MIT - see [LICENSE](./LICENSE)
 
 ## 🙏 Credits
 
-JSSD is built on top of the excellent [JavaScriptSolidServer](https://github.com/JavaScriptSolidServer/JavaScriptSolidServer) by Melvin Carvalho and contributors.
+jspod is built on top of the excellent [JavaScriptSolidServer](https://github.com/JavaScriptSolidServer/JavaScriptSolidServer) by Melvin Carvalho and contributors.
 
 ## 💬 Support
 
-- **Issues**: https://github.com/JavaScriptSolidServer/jssd/issues
-- **Discussions**: https://github.com/JavaScriptSolidServer/jssd/discussions
+- **Issues**: https://github.com/JavaScriptSolidServer/jspod/issues
+- **Discussions**: https://github.com/JavaScriptSolidServer/jspod/discussions
 - **Solid Forum**: https://forum.solidproject.org
 
 ---
