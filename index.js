@@ -7,7 +7,7 @@
 
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, delimiter } from 'path';
 import chalk from 'chalk';
 import { existsSync, mkdirSync } from 'fs';
 
@@ -118,9 +118,6 @@ console.log(chalk.cyan('   └─ ') + chalk.white('WebID:      ') + chalk.blue.
 console.log('\n' + chalk.dim('Press ') + chalk.bold.red('Ctrl+C') + chalk.dim(' to stop the server\n'));
 console.log(chalk.yellow('⏳ Initializing server components...\n'));
 
-// Find jss binary
-const jssBin = join(__dirname, 'node_modules', '.bin', 'jss');
-
 // Build jss arguments
 const jssArgs = [
   'start',
@@ -135,11 +132,12 @@ if (!options.multiuser) {
   jssArgs.push('--no-multiuser');
 }
 
-// Start JSS
-const jss = spawn(jssBin, jssArgs, {
+// Start JSS with enhanced PATH to find the binary
+const jss = spawn('jss', jssArgs, {
   stdio: 'inherit',
   env: {
     ...process.env,
+    PATH: `${join(__dirname, 'node_modules', '.bin')}${delimiter}${process.env.PATH}`,
     TOKEN_SECRET: process.env.TOKEN_SECRET || 'jssd-default-secret-change-in-production',
     NODE_ENV: process.env.NODE_ENV || 'development'
   }
