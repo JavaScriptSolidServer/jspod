@@ -1,6 +1,6 @@
 {
   "name": "jspod",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "JavaScript Solid Pod - Just works, batteries included",
   "type": "module",
   "main": "index.js",
@@ -37,6 +37,6 @@
   },
   "dependencies": {
     "chalk": "^5.6.2",
-    "javascript-solid-server": "^0.0.185"
+    "javascript-solid-server": "^0.0.186"
   }
 }
