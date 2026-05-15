@@ -201,7 +201,8 @@ Under the hood, jspod runs JavaScriptSolidServer with these options:
   host: '127.0.0.1',       // Localhost-only by default (rung-1 credentials)
   root: './pod-data',      // Local data directory
   multiuser: false,        // Single pod per server
-  TOKEN_SECRET: (auto)     // JWT secret (auto-generated, change for production)
+  TOKEN_SECRET: 'jspod-default-secret-change-in-production'
+                           // Static fallback. Override via env for any non-local use.
 }
 ```
 

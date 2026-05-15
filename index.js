@@ -56,7 +56,11 @@ for (let i = 0; i < args.length; i++) {
   if (arg === '--port' || arg === '-p') {
     options.port = parseInt(args[++i], 10);
   } else if (arg === '--host' || arg === '-h') {
-    options.host = args[++i];
+    // Strip optional brackets from IPv6 literals so a user-friendly
+    // `--host [::1]` paste-in stays canonical. formatUrl re-adds the
+    // brackets where they belong in URLs; the raw host going to JSS
+    // and to comparisons remains the unbracketed literal.
+    options.host = args[++i].replace(/^\[|\]$/g, '');
   } else if (arg === '--root' || arg === '-r') {
     options.root = args[++i];
   } else if (arg === '--multiuser') {
@@ -143,25 +147,35 @@ if (options.auth && !options.multiuser) {
     : 'Sign In (rung 1 of the auth ladder):';
   console.log('\n' + chalk.bold.white(`🔑 ${rungLabel}\n`));
   console.log(chalk.cyan('   ├─ ') + chalk.white('Username:  ') + chalk.bold.green(RUNG_1_USERNAME));
-  console.log(chalk.cyan('   ├─ ') + chalk.white('Password:  ') + chalk.bold.green(RUNG_1_PASSWORD));
+  // Only print the literal password when it's the rung-1 default. If
+  // the user set a real password via env, echoing it to stdout would
+  // leak into terminal scrollback, shell history capture, CI logs, and
+  // shared sessions. They already know the value they set; the banner
+  // just confirms it was picked up.
+  if (RUNG_1_PASSWORD_FROM_ENV) {
+    console.log(chalk.cyan('   ├─ ') + chalk.white('Password:  ') + chalk.dim('(hidden — set via JSS_SINGLE_USER_PASSWORD)'));
+  } else {
+    console.log(chalk.cyan('   ├─ ') + chalk.white('Password:  ') + chalk.bold.green(RUNG_1_PASSWORD));
+  }
   console.log(chalk.cyan('   └─ ') + chalk.dim('Climb: change the password or add a passkey from account settings'));
 
   // Loud warning if the rung-1 known credentials are reachable beyond
   // the local machine. See issue #6 ("auth ladder"): rung 1 is only
   // safe when the host is loopback-only. Any other bind exposes the
   // well-known me/me credentials to the LAN (or worse).
-  // Loopback covers the full 127.0.0.0/8 IPv4 range plus IPv6 ::1
-  // (and its bracketed form, which a user might paste in by accident).
+  // Loopback covers the full 127.0.0.0/8 IPv4 range plus IPv6 ::1.
+  // (Bracketed `[::1]` input is stripped to `::1` at CLI parse time
+  // — see options.host parsing — so it matches here without a
+  // bracketed branch.)
   const isLoopback =
     options.host === 'localhost' ||
     /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(options.host) ||
-    options.host === '::1' ||
-    options.host === '[::1]';
+    options.host === '::1';
   if (!isLoopback) {
     console.log('\n' + chalk.bold.red('⚠  Warning: ') + chalk.yellow(
       `--host ${options.host} exposes the well-known me/me credentials beyond localhost.`
     ));
-    console.log(chalk.dim('   Set --single-user-password via env (JSS_SINGLE_USER_PASSWORD) or run on 127.0.0.1.'));
+    console.log(chalk.dim('   Set JSS_SINGLE_USER_PASSWORD=... before running, or bind to 127.0.0.1.'));
   }
 }
 
