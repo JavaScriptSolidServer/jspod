@@ -9,7 +9,8 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join, delimiter } from 'path';
 import chalk from 'chalk';
-import { existsSync, mkdirSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { randomBytes } from 'crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
@@ -17,6 +18,10 @@ const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
 // Build a browser-friendly URL from a host/port pair. Normalizes wildcard
 // addresses (0.0.0.0, ::) to localhost and brackets IPv6 literals so the
 // result is always a valid URL the user (and the browser) can open.
+// IPv6 zone identifiers (e.g. `fe80::1%lo0`) are rejected at CLI parse
+// time — the WHATWG URL spec doesn't support them, so any URL we built
+// with one would be unparseable by Node and by the browser regardless
+// of `%` encoding.
 function formatUrl(host, port) {
   if (host === '0.0.0.0' || host === '::' || host === '*') {
     return `http://localhost:${port}`;
@@ -50,19 +55,42 @@ const RUNG_1_USERNAME = 'me';
 const RUNG_1_PASSWORD = process.env.JSS_SINGLE_USER_PASSWORD || 'me';
 const RUNG_1_PASSWORD_FROM_ENV = !!process.env.JSS_SINGLE_USER_PASSWORD;
 
+// Require a value after a value-taking flag. Without this guard, a stray
+// `jspod --host` (no value) reads `undefined` from args[++i] and the next
+// .replace() call throws a cryptic TypeError. Friendlier to error early
+// and tell the user what's missing.
+function requireValue(flag, value) {
+  if (value === undefined) {
+    console.error(chalk.red(`✗ Missing value for ${flag}`));
+    console.error(chalk.dim('Use --help for usage information'));
+    process.exit(1);
+  }
+  return value;
+}
+
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
 
   if (arg === '--port' || arg === '-p') {
-    options.port = parseInt(args[++i], 10);
+    options.port = parseInt(requireValue(arg, args[++i]), 10);
   } else if (arg === '--host' || arg === '-h') {
     // Strip optional brackets from IPv6 literals so a user-friendly
     // `--host [::1]` paste-in stays canonical. formatUrl re-adds the
     // brackets where they belong in URLs; the raw host going to JSS
     // and to comparisons remains the unbracketed literal.
-    options.host = args[++i].replace(/^\[|\]$/g, '');
+    const rawHost = requireValue(arg, args[++i]).replace(/^\[|\]$/g, '');
+    // Reject IPv6 zone identifiers — WHATWG URL spec doesn't support
+    // them, so any URL we built (banner, browser auto-open, readiness
+    // probe) would be unparseable. Better to fail fast with a clear
+    // message than to ship a broken auto-open silently.
+    if (rawHost.includes('%')) {
+      console.error(chalk.red(`✗ IPv6 zone identifiers are not supported: ${rawHost}`));
+      console.error(chalk.dim('Bind to a non-zoned address (e.g. ::1, 127.0.0.1, or your LAN IP) instead.'));
+      process.exit(1);
+    }
+    options.host = rawHost;
   } else if (arg === '--root' || arg === '-r') {
-    options.root = args[++i];
+    options.root = requireValue(arg, args[++i]);
   } else if (arg === '--multiuser') {
     options.multiuser = true;
   } else if (arg === '--no-auth') {
@@ -114,6 +142,27 @@ for (let i = 0; i < args.length; i++) {
 if (!existsSync(options.root)) {
   mkdirSync(options.root, { recursive: true });
 }
+
+// Resolve the JWT signing secret. Priority:
+//   1. TOKEN_SECRET env var (operator-controlled)
+//   2. Persisted random secret at <root>/.token-secret (generated on
+//      first run, mode 0600). Same data dir always produces the same
+//      effective secret across restarts — sessions and refresh tokens
+//      survive process bounces.
+// Generating per-data-dir avoids the previous footgun of a hardcoded
+// fallback string that anyone could use to forge JWTs against a
+// non-loopback deployment.
+function resolveTokenSecret(rootDir) {
+  if (process.env.TOKEN_SECRET) return process.env.TOKEN_SECRET;
+  const secretFile = join(rootDir, '.token-secret');
+  if (existsSync(secretFile)) {
+    return readFileSync(secretFile, 'utf8').trim();
+  }
+  const secret = randomBytes(48).toString('base64');
+  writeFileSync(secretFile, secret, { mode: 0o600 });
+  return secret;
+}
+const tokenSecret = resolveTokenSecret(options.root);
 
 // Display startup banner
 console.log(chalk.cyan(`
@@ -231,7 +280,7 @@ const jss = spawn('jss', jssArgs, {
   env: {
     ...process.env,
     PATH: `${join(__dirname, 'node_modules', '.bin')}${delimiter}${process.env.PATH}`,
-    TOKEN_SECRET: process.env.TOKEN_SECRET || 'jspod-default-secret-change-in-production',
+    TOKEN_SECRET: tokenSecret,
     NODE_ENV: process.env.NODE_ENV || 'development'
   }
 });

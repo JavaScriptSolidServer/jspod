@@ -91,8 +91,9 @@ Options:
 ### Environment Variables
 
 ```bash
-# Set JWT secret (recommended for production)
-export TOKEN_SECRET="your-secret-key-here"
+# JWT secret — auto-generated and persisted at <root>/.token-secret on
+# first run. Override here only for operator-managed deployments.
+export TOKEN_SECRET="$(openssl rand -base64 32)"
 
 # Set environment
 export NODE_ENV="production"
@@ -105,7 +106,7 @@ jspod
 
 **⚠️ Important**: Before deploying to production:
 
-1. **Set TOKEN_SECRET**
+1. **TOKEN_SECRET** is auto-generated on first run and persisted at `<root>/.token-secret` (mode 0600). For operator-managed deployments — secret rotation, distributed setups, secret managers — set it explicitly via env:
    ```bash
    export TOKEN_SECRET="$(openssl rand -base64 32)"
    ```
@@ -201,8 +202,9 @@ Under the hood, jspod runs JavaScriptSolidServer with these options:
   host: '127.0.0.1',       // Localhost-only by default (rung-1 credentials)
   root: './pod-data',      // Local data directory
   multiuser: false,        // Single pod per server
-  TOKEN_SECRET: 'jspod-default-secret-change-in-production'
-                           // Static fallback. Override via env for any non-local use.
+  TOKEN_SECRET: (per-pod)  // Auto-generated on first run and persisted at
+                           // <root>/.token-secret (mode 0600). Override via
+                           // the TOKEN_SECRET env var for operator control.
 }
 ```
 
