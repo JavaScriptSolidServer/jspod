@@ -5,8 +5,11 @@
   "type": "module",
   "main": "index.js",
   "bin": {
-    "jspod": "./index.js"
+    "jspod": "index.js"
   },
+  "files": [
+    "index.js"
+  ],
   "scripts": {
     "start": "node index.js"
   },
