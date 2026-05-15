@@ -31,12 +31,19 @@ function formatUrl(host, port) {
 const args = process.argv.slice(2);
 const options = {
   port: 5444,
-  host: '0.0.0.0',
+  host: '127.0.0.1',
   root: './pod-data',
   multiuser: false,
   auth: true,
   open: true
 };
+
+// Auth-ladder rung-1 credentials. See issue #6: jspod ships a deliberately
+// weak default sign-in so the new user is on a working pod within seconds,
+// with a clearly-marked path to climb (change password / add a passkey).
+// Safe because the default host is localhost-only (127.0.0.1).
+const RUNG_1_USERNAME = 'me';
+const RUNG_1_PASSWORD = 'me';
 
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
@@ -66,7 +73,7 @@ for (let i = 0; i < args.length; i++) {
     console.log(chalk.yellow('  jspod') + chalk.dim(' [options]\n'));
     console.log(chalk.white('Options:'));
     console.log(chalk.green('  -p, --port ') + chalk.yellow('<number>') + chalk.dim('     Port to listen on (default: 5444)'));
-    console.log(chalk.green('  -h, --host ') + chalk.yellow('<address>') + chalk.dim('    Host to bind to (default: 0.0.0.0)'));
+    console.log(chalk.green('  -h, --host ') + chalk.yellow('<address>') + chalk.dim('    Host to bind to (default: 127.0.0.1)'));
     console.log(chalk.green('  -r, --root ') + chalk.yellow('<path>') + chalk.dim('       Data directory (default: ./pod-data)'));
     console.log(chalk.green('  --multiuser') + chalk.dim('            Enable multi-user mode'));
     console.log(chalk.green('  --no-auth') + chalk.dim('              Disable authentication'));
@@ -125,6 +132,28 @@ console.log(chalk.cyan('   ├─ ') + chalk.white('Host:      ') + chalk.yellow
 console.log(chalk.cyan('   ├─ ') + chalk.white('Pod Root:  ') + chalk.yellow(options.root));
 console.log(chalk.cyan('   └─ ') + chalk.white('Mode:      ') + (options.multiuser ? chalk.yellow('Multi-user') : chalk.yellow('Single-user')));
 
+if (options.auth && !options.multiuser) {
+  console.log('\n' + chalk.bold.white('🔑 Sign In (rung 1 of the auth ladder):\n'));
+  console.log(chalk.cyan('   ├─ ') + chalk.white('Username:  ') + chalk.bold.green(RUNG_1_USERNAME));
+  console.log(chalk.cyan('   ├─ ') + chalk.white('Password:  ') + chalk.bold.green(RUNG_1_PASSWORD));
+  console.log(chalk.cyan('   └─ ') + chalk.dim('Climb: change the password or add a passkey from account settings'));
+
+  // Loud warning if the rung-1 known credentials are reachable beyond
+  // the local machine. See issue #6 ("auth ladder"): rung 1 is only
+  // safe when the host is loopback-only. Any other bind exposes the
+  // well-known me/me credentials to the LAN (or worse).
+  const isLoopback =
+    options.host === '127.0.0.1' ||
+    options.host === 'localhost' ||
+    options.host === '::1';
+  if (!isLoopback) {
+    console.log('\n' + chalk.bold.red('⚠  Warning: ') + chalk.yellow(
+      `--host ${options.host} exposes the well-known me/me credentials beyond localhost.`
+    ));
+    console.log(chalk.dim('   Set --single-user-password via env (JSS_SINGLE_USER_PASSWORD) or run on 127.0.0.1.'));
+  }
+}
+
 console.log('\n' + chalk.bold.white('✨ Features:\n'));
 console.log(chalk.cyan('   ├─ ') + chalk.green('Solid Protocol     ') + chalk.bold.green('✓'));
 console.log(chalk.cyan('   ├─ ') + chalk.green('WebID Auth         ') + (options.auth ? chalk.bold.green('✓') : chalk.dim('✗')));
@@ -150,8 +179,18 @@ const jssArgs = [
   '--conneg'
 ];
 
-if (!options.multiuser) {
-  jssArgs.push('--no-multiuser');
+if (options.multiuser) {
+  // Multi-user mode is an explicit opt-out from jspod's single-user
+  // positioning (#3). The IDP stays available so users can register.
+  if (options.auth) jssArgs.push('--idp');
+} else {
+  // Default: single-user personal pod with rung-1 credentials seeded.
+  // The pod, IDP, and known credentials are created on first start;
+  // every subsequent start is a no-op (JSS is idempotent on the seed).
+  jssArgs.push('--no-multiuser', '--single-user');
+  if (options.auth) {
+    jssArgs.push('--idp', '--single-user-password', RUNG_1_PASSWORD);
+  }
 }
 
 // Start JSS with enhanced PATH to find the binary
