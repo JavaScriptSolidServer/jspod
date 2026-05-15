@@ -72,7 +72,17 @@ for (let i = 0; i < args.length; i++) {
   const arg = args[i];
 
   if (arg === '--port' || arg === '-p') {
-    options.port = parseInt(requireValue(arg, args[++i]), 10);
+    const raw = requireValue(arg, args[++i]);
+    const parsed = parseInt(raw, 10);
+    // Reject non-numeric / out-of-range / privileged ports. parseInt('abc')
+    // returns NaN, which would silently propagate to JSS as `--port NaN`
+    // and produce a confusing crash deep in the server.
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535 || String(parsed) !== raw.trim()) {
+      console.error(chalk.red(`✗ Invalid port: ${raw}`));
+      console.error(chalk.dim('Port must be an integer in the range 1-65535.'));
+      process.exit(1);
+    }
+    options.port = parsed;
   } else if (arg === '--host' || arg === '-h') {
     // Strip optional brackets from IPv6 literals so a user-friendly
     // `--host [::1]` paste-in stays canonical. formatUrl re-adds the
@@ -156,7 +166,14 @@ function resolveTokenSecret(rootDir) {
   if (process.env.TOKEN_SECRET) return process.env.TOKEN_SECRET;
   const secretFile = join(rootDir, '.token-secret');
   if (existsSync(secretFile)) {
-    return readFileSync(secretFile, 'utf8').trim();
+    const loaded = readFileSync(secretFile, 'utf8').trim();
+    // Guard against a truncated / empty / accidentally-overwritten
+    // secret file. A short-or-empty secret would silently weaken JWT
+    // signing — regenerate and warn rather than ship the bad value.
+    if (loaded.length >= 32) return loaded;
+    console.warn(chalk.yellow(
+      `⚠  ${secretFile} is empty or too short (${loaded.length} chars); regenerating.`
+    ));
   }
   const secret = randomBytes(48).toString('base64');
   writeFileSync(secretFile, secret, { mode: 0o600 });
@@ -221,10 +238,21 @@ if (options.auth && !options.multiuser) {
     /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(options.host) ||
     options.host === '::1';
   if (!isLoopback) {
-    console.log('\n' + chalk.bold.red('⚠  Warning: ') + chalk.yellow(
-      `--host ${options.host} exposes the well-known me/me credentials beyond localhost.`
-    ));
-    console.log(chalk.dim('   Set JSS_SINGLE_USER_PASSWORD=... before running, or bind to 127.0.0.1.'));
+    if (RUNG_1_PASSWORD_FROM_ENV) {
+      // Custom password from env. Still worth warning the user that
+      // their sign-in is now reachable from anywhere this host
+      // answers, but no longer accurate to call the credentials
+      // "well-known."
+      console.log('\n' + chalk.bold.red('⚠  Warning: ') + chalk.yellow(
+        `--host ${options.host} exposes single-user sign-in beyond localhost.`
+      ));
+      console.log(chalk.dim('   Make sure your JSS_SINGLE_USER_PASSWORD is strong, and use HTTPS in production.'));
+    } else {
+      console.log('\n' + chalk.bold.red('⚠  Warning: ') + chalk.yellow(
+        `--host ${options.host} exposes the well-known me/me credentials beyond localhost.`
+      ));
+      console.log(chalk.dim('   Set JSS_SINGLE_USER_PASSWORD=... before running, or bind to 127.0.0.1.'));
+    }
   }
 }
 
@@ -263,7 +291,16 @@ if (options.multiuser) {
   // every subsequent start is a no-op (JSS is idempotent on the seed).
   jssArgs.push('--no-multiuser', '--single-user');
   if (options.auth) {
-    jssArgs.push('--idp', '--single-user-password', RUNG_1_PASSWORD);
+    jssArgs.push('--idp');
+    // Pass the rung-1 placeholder on argv (it has no secrecy property
+    // — anyone reading the docs already knows the literal 'me'). For
+    // an env-supplied password, *don't* re-expose it on argv where
+    // `ps`, service-manager logs, and other local users can read it.
+    // JSS reads JSS_SINGLE_USER_PASSWORD from env directly when no
+    // CLI flag is given, and we forward process.env to the child.
+    if (!RUNG_1_PASSWORD_FROM_ENV) {
+      jssArgs.push('--single-user-password', RUNG_1_PASSWORD);
+    }
   }
 }
 
