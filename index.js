@@ -42,8 +42,13 @@ const options = {
 // weak default sign-in so the new user is on a working pod within seconds,
 // with a clearly-marked path to climb (change password / add a passkey).
 // Safe because the default host is localhost-only (127.0.0.1).
+// Username is fixed by JSS for root pods (server.js:970). Password defaults
+// to 'me' but can be overridden via JSS_SINGLE_USER_PASSWORD so the env
+// override documented in the README actually takes effect (and the banner
+// shows the effective password, not a stale default).
 const RUNG_1_USERNAME = 'me';
-const RUNG_1_PASSWORD = 'me';
+const RUNG_1_PASSWORD = process.env.JSS_SINGLE_USER_PASSWORD || 'me';
+const RUNG_1_PASSWORD_FROM_ENV = !!process.env.JSS_SINGLE_USER_PASSWORD;
 
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
@@ -133,7 +138,10 @@ console.log(chalk.cyan('   ├─ ') + chalk.white('Pod Root:  ') + chalk.yellow
 console.log(chalk.cyan('   └─ ') + chalk.white('Mode:      ') + (options.multiuser ? chalk.yellow('Multi-user') : chalk.yellow('Single-user')));
 
 if (options.auth && !options.multiuser) {
-  console.log('\n' + chalk.bold.white('🔑 Sign In (rung 1 of the auth ladder):\n'));
+  const rungLabel = RUNG_1_PASSWORD_FROM_ENV
+    ? 'Sign In (password from JSS_SINGLE_USER_PASSWORD):'
+    : 'Sign In (rung 1 of the auth ladder):';
+  console.log('\n' + chalk.bold.white(`🔑 ${rungLabel}\n`));
   console.log(chalk.cyan('   ├─ ') + chalk.white('Username:  ') + chalk.bold.green(RUNG_1_USERNAME));
   console.log(chalk.cyan('   ├─ ') + chalk.white('Password:  ') + chalk.bold.green(RUNG_1_PASSWORD));
   console.log(chalk.cyan('   └─ ') + chalk.dim('Climb: change the password or add a passkey from account settings'));
@@ -142,10 +150,13 @@ if (options.auth && !options.multiuser) {
   // the local machine. See issue #6 ("auth ladder"): rung 1 is only
   // safe when the host is loopback-only. Any other bind exposes the
   // well-known me/me credentials to the LAN (or worse).
+  // Loopback covers the full 127.0.0.0/8 IPv4 range plus IPv6 ::1
+  // (and its bracketed form, which a user might paste in by accident).
   const isLoopback =
-    options.host === '127.0.0.1' ||
     options.host === 'localhost' ||
-    options.host === '::1';
+    /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(options.host) ||
+    options.host === '::1' ||
+    options.host === '[::1]';
   if (!isLoopback) {
     console.log('\n' + chalk.bold.red('⚠  Warning: ') + chalk.yellow(
       `--host ${options.host} exposes the well-known me/me credentials beyond localhost.`
@@ -191,6 +202,13 @@ if (options.multiuser) {
   if (options.auth) {
     jssArgs.push('--idp', '--single-user-password', RUNG_1_PASSWORD);
   }
+}
+
+if (!options.auth) {
+  // JSS's `--public` is the real no-auth switch: skip WAC, open
+  // read/write. Without it, `--no-auth` would only mean "no IDP"
+  // — the pod would still be ACL-gated and unreachable.
+  jssArgs.push('--public');
 }
 
 // Start JSS with enhanced PATH to find the binary

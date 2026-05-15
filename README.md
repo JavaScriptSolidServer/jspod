@@ -245,15 +245,10 @@ Override the default password without going through the UI:
 JSS_SINGLE_USER_PASSWORD='your-password' npx jspod
 ```
 
-**Step 3**: Register with a passkey
-- Click "Register" or "Sign Up"
-- Use your device's biometric auth (fingerprint, Face ID, etc.)
-- Your WebID will be created automatically
-
-**Step 4**: Start using your pod!
-- Upload files, create resources
-- Use Solid apps to connect to your pod
+**Step 5**: Start using your pod
+- Upload files, create resources from a Solid app
 - Your data stays on your server
+- Connect more apps — they all authenticate against your IDP
 
 **Troubleshooting**:
 - **Port in use?** Run `jspod --port 5445`
