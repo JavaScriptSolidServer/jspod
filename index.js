@@ -14,6 +14,19 @@ import { existsSync, mkdirSync, readFileSync } from 'fs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
 
+// Build a browser-friendly URL from a host/port pair. Normalizes wildcard
+// addresses (0.0.0.0, ::) to localhost and brackets IPv6 literals so the
+// result is always a valid URL the user (and the browser) can open.
+function formatUrl(host, port) {
+  if (host === '0.0.0.0' || host === '::' || host === '*') {
+    return `http://localhost:${port}`;
+  }
+  if (host.includes(':')) {
+    return `http://[${host}]:${port}`;
+  }
+  return `http://${host}:${port}`;
+}
+
 // Parse CLI arguments
 const args = process.argv.slice(2);
 const options = {
@@ -21,7 +34,8 @@ const options = {
   host: '0.0.0.0',
   root: './pod-data',
   multiuser: false,
-  auth: true
+  auth: true,
+  open: true
 };
 
 for (let i = 0; i < args.length; i++) {
@@ -37,6 +51,8 @@ for (let i = 0; i < args.length; i++) {
     options.multiuser = true;
   } else if (arg === '--no-auth') {
     options.auth = false;
+  } else if (arg === '--no-open') {
+    options.open = false;
   } else if (arg === '--version' || arg === '-v') {
     console.log(`jspod v${pkg.version}`);
     process.exit(0);
@@ -54,6 +70,7 @@ for (let i = 0; i < args.length; i++) {
     console.log(chalk.green('  -r, --root ') + chalk.yellow('<path>') + chalk.dim('       Data directory (default: ./pod-data)'));
     console.log(chalk.green('  --multiuser') + chalk.dim('            Enable multi-user mode'));
     console.log(chalk.green('  --no-auth') + chalk.dim('              Disable authentication'));
+    console.log(chalk.green('  --no-open') + chalk.dim('              Do not open the browser automatically'));
     console.log(chalk.green('  -v, --version') + chalk.dim('           Show jspod version'));
     console.log(chalk.green('  --help') + chalk.dim('                  Show this help message\n'));
     console.log(chalk.white('Examples:'));
@@ -102,7 +119,7 @@ console.log(chalk.cyan(`
 console.log(chalk.blue('🚀 Starting Solid server...\n'));
 
 console.log(chalk.bold.white('📡 Server Configuration:\n'));
-console.log(chalk.cyan('   ├─ ') + chalk.white('URL:       ') + chalk.bold.green(`http://${options.host === '0.0.0.0' ? 'localhost' : options.host}:${options.port}`));
+console.log(chalk.cyan('   ├─ ') + chalk.white('URL:       ') + chalk.bold.green(formatUrl(options.host, options.port)));
 console.log(chalk.cyan('   ├─ ') + chalk.white('Port:      ') + chalk.yellow(options.port));
 console.log(chalk.cyan('   ├─ ') + chalk.white('Host:      ') + chalk.yellow(options.host));
 console.log(chalk.cyan('   ├─ ') + chalk.white('Pod Root:  ') + chalk.yellow(options.root));
@@ -153,6 +170,63 @@ jss.on('error', (error) => {
   console.error(chalk.dim(error.message));
   process.exit(1);
 });
+
+// Auto-open the browser once the server is responsive (single-user first-run delight).
+// Opt out with --no-open, or by running in CI / SSH / non-TTY environments.
+const browserUrl = formatUrl(options.host, options.port);
+
+function shouldAutoOpen() {
+  if (!options.open) return false;
+  // Require both stdin and stdout to be TTYs so that piped invocations
+  // (e.g. `echo | jspod`) are treated as non-interactive.
+  if (!process.stdin.isTTY || !process.stdout.isTTY) return false;
+  if (process.env.CI) return false;
+  if (process.env.SSH_CONNECTION || process.env.SSH_CLIENT || process.env.SSH_TTY) return false;
+  if (process.env.TERM === 'dumb') return false;
+  return true;
+}
+
+async function waitForReady(url, timeoutMs = 30000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const ac = new AbortController();
+      const t = setTimeout(() => ac.abort(), 1000);
+      await fetch(url, { signal: ac.signal, redirect: 'manual' });
+      clearTimeout(t);
+      return true;
+    } catch {
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+  return false;
+}
+
+function openInBrowser(url) {
+  let cmd, args;
+  if (process.platform === 'darwin') {
+    cmd = 'open';
+    args = [url];
+  } else if (process.platform === 'win32') {
+    cmd = 'cmd';
+    args = ['/c', 'start', '""', url];
+  } else {
+    cmd = 'xdg-open';
+    args = [url];
+  }
+  const child = spawn(cmd, args, { stdio: 'ignore', detached: true });
+  child.on('error', () => {}); // best-effort; never block the server
+  child.unref();
+}
+
+if (shouldAutoOpen()) {
+  waitForReady(browserUrl).then((ready) => {
+    if (ready) {
+      console.log(chalk.green(`\n🌐 Opening ${browserUrl} in your browser...`));
+      openInBrowser(browserUrl);
+    }
+  });
+}
 
 jss.on('exit', (code) => {
   if (code !== 0) {

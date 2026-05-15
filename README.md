@@ -83,6 +83,8 @@ Options:
   -r, --root <path>       Data directory (default: ./pod-data)
   --multiuser             Enable multi-user mode
   --no-auth               Disable authentication
+  --no-open               Do not open the browser automatically
+  -v, --version           Show jspod version
   --help                  Show help message
 ```
 
@@ -210,7 +212,9 @@ Under the hood, jspod runs JavaScriptSolidServer with these options:
 npx jspod
 ```
 
-**Step 2**: Open your browser to `http://localhost:5444`
+**Step 2**: Your browser opens automatically to `http://localhost:5444`
+
+> Running over SSH, in CI, or in a non-interactive terminal? jspod skips auto-open and prints the URL instead. You can also pass `--no-open` to disable it explicitly.
 
 **Step 3**: Register with a passkey
 - Click "Register" or "Sign Up"
