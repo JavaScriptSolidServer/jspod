@@ -13,7 +13,7 @@
 # Run instantly with npx (no installation required!)
 npx jspod
 
-# That's it! Your Solid server is running at http://localhost:3000
+# That's it! Your Solid server is running at http://localhost:5444
 ```
 
 ## ✨ Features
@@ -61,7 +61,7 @@ npx jspod
 ### Basic Usage
 
 ```bash
-# Start with defaults (port 3000, single-user)
+# Start with defaults (port 5444, single-user)
 jspod
 
 # Custom port
@@ -78,7 +78,7 @@ jspod --multiuser
 
 ```
 Options:
-  -p, --port <number>     Port to listen on (default: 3000)
+  -p, --port <number>     Port to listen on (default: 5444)
   -h, --host <address>    Host to bind to (default: 0.0.0.0)
   -r, --root <path>       Data directory (default: ./pod-data)
   --multiuser             Enable multi-user mode
@@ -125,7 +125,7 @@ jspod
 
 5. **Monitor logs**
    ```bash
-   jspod --verbose > jspod.log 2>&1
+   jspod > jspod.log 2>&1
    ```
 
 ## 🏃 Quickstart Examples
@@ -136,7 +136,7 @@ jspod
 # Start your personal Solid pod
 jspod
 
-# Visit http://localhost:3000 in your browser
+# Visit http://localhost:5444 in your browser
 # Register with passkey, start storing data!
 ```
 
@@ -195,7 +195,7 @@ Under the hood, jspod runs JavaScriptSolidServer with these options:
 
 ```javascript
 {
-  port: 3000,              // Easy to remember
+  port: 5444,              // Memorable, low collision with common dev servers
   host: '0.0.0.0',         // Accept connections from anywhere
   root: './pod-data',      // Local data directory
   multiuser: false,        // Single pod per server
@@ -210,7 +210,7 @@ Under the hood, jspod runs JavaScriptSolidServer with these options:
 npx jspod
 ```
 
-**Step 2**: Open your browser to `http://localhost:3000`
+**Step 2**: Open your browser to `http://localhost:5444`
 
 **Step 3**: Register with a passkey
 - Click "Register" or "Sign Up"
@@ -223,7 +223,7 @@ npx jspod
 - Your data stays on your server
 
 **Troubleshooting**:
-- **Port in use?** Run `jspod --port 3001`
+- **Port in use?** Run `jspod --port 5445`
 - **Data location?** Check `./pod-data` directory
 - **Can't register?** Make sure your browser supports WebAuthn (Chrome, Firefox, Safari, Edge all work)
 

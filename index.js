@@ -9,9 +9,10 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join, delimiter } from 'path';
 import chalk from 'chalk';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
 
 // Parse CLI arguments
 const args = process.argv.slice(2);
@@ -36,6 +37,9 @@ for (let i = 0; i < args.length; i++) {
     options.multiuser = true;
   } else if (arg === '--no-auth') {
     options.auth = false;
+  } else if (arg === '--version' || arg === '-v') {
+    console.log(`jspod v${pkg.version}`);
+    process.exit(0);
   } else if (arg === '--help') {
     console.log(chalk.cyan(`
 ╔═══════════════════════════════════════════════════════════════════╗
@@ -43,18 +47,19 @@ for (let i = 0; i < args.length; i++) {
 ╚═══════════════════════════════════════════════════════════════════╝
 `));
     console.log(chalk.white('Usage:'));
-    console.log(chalk.yellow('  jssd') + chalk.dim(' [options]\n'));
+    console.log(chalk.yellow('  jspod') + chalk.dim(' [options]\n'));
     console.log(chalk.white('Options:'));
     console.log(chalk.green('  -p, --port ') + chalk.yellow('<number>') + chalk.dim('     Port to listen on (default: 5444)'));
     console.log(chalk.green('  -h, --host ') + chalk.yellow('<address>') + chalk.dim('    Host to bind to (default: 0.0.0.0)'));
     console.log(chalk.green('  -r, --root ') + chalk.yellow('<path>') + chalk.dim('       Data directory (default: ./pod-data)'));
     console.log(chalk.green('  --multiuser') + chalk.dim('            Enable multi-user mode'));
     console.log(chalk.green('  --no-auth') + chalk.dim('              Disable authentication'));
+    console.log(chalk.green('  -v, --version') + chalk.dim('           Show jspod version'));
     console.log(chalk.green('  --help') + chalk.dim('                  Show this help message\n'));
     console.log(chalk.white('Examples:'));
-    console.log(chalk.dim('  jssd'));
-    console.log(chalk.dim('  jssd --port 8080 --root /var/pods'));
-    console.log(chalk.dim('  jssd --multiuser\n'));
+    console.log(chalk.dim('  jspod'));
+    console.log(chalk.dim('  jspod --port 8080 --root /var/pods'));
+    console.log(chalk.dim('  jspod --multiuser\n'));
     console.log(chalk.white('Features:'));
     console.log(chalk.dim('  • Solid Protocol compliant'));
     console.log(chalk.dim('  • WebID authentication'));
@@ -62,7 +67,7 @@ for (let i = 0; i < args.length; i++) {
     console.log(chalk.dim('  • WebSocket notifications'));
     console.log(chalk.dim('  • JSON-LD native\n'));
     console.log(chalk.white('Resources:'));
-    console.log(chalk.blue('  https://github.com/JavaScriptSolidServer/jssd'));
+    console.log(chalk.blue('  https://github.com/JavaScriptSolidServer/jspod'));
     console.log(chalk.blue('  https://solidproject.org\n'));
     process.exit(0);
   } else {
@@ -111,7 +116,7 @@ console.log(chalk.cyan('   ├─ ') + chalk.green('Notifications      ') + chal
 console.log(chalk.cyan('   └─ ') + chalk.green('JSON-LD Native     ') + chalk.bold.green('✓'));
 
 console.log('\n' + chalk.bold.white('📚 Resources:\n'));
-console.log(chalk.cyan('   ├─ ') + chalk.white('Server:     ') + chalk.blue.underline('https://github.com/JavaScriptSolidServer/jssd'));
+console.log(chalk.cyan('   ├─ ') + chalk.white('Server:     ') + chalk.blue.underline('https://github.com/JavaScriptSolidServer/jspod'));
 console.log(chalk.cyan('   ├─ ') + chalk.white('Solid:      ') + chalk.blue.underline('https://solidproject.org'));
 console.log(chalk.cyan('   └─ ') + chalk.white('WebID:      ') + chalk.blue.underline('https://www.w3.org/2005/Incubator/webid/spec'));
 
@@ -138,7 +143,7 @@ const jss = spawn('jss', jssArgs, {
   env: {
     ...process.env,
     PATH: `${join(__dirname, 'node_modules', '.bin')}${delimiter}${process.env.PATH}`,
-    TOKEN_SECRET: process.env.TOKEN_SECRET || 'jssd-default-secret-change-in-production',
+    TOKEN_SECRET: process.env.TOKEN_SECRET || 'jspod-default-secret-change-in-production',
     NODE_ENV: process.env.NODE_ENV || 'development'
   }
 });
