@@ -9,7 +9,7 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join, delimiter } from 'path';
 import chalk from 'chalk';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, statSync } from 'fs';
 import { randomBytes } from 'crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -57,11 +57,19 @@ const RUNG_1_PASSWORD_FROM_ENV = !!process.env.JSS_SINGLE_USER_PASSWORD;
 
 // Require a value after a value-taking flag. Without this guard, a stray
 // `jspod --host` (no value) reads `undefined` from args[++i] and the next
-// .replace() call throws a cryptic TypeError. Friendlier to error early
-// and tell the user what's missing.
+// .replace() call throws a cryptic TypeError. We also reject values that
+// look like another option (`-`-prefixed) — otherwise `jspod --host
+// --no-auth` would silently consume `--no-auth` as the host value, drop
+// the intended flag, and bind the server to a literal string '--no-auth'.
 function requireValue(flag, value) {
   if (value === undefined) {
     console.error(chalk.red(`✗ Missing value for ${flag}`));
+    console.error(chalk.dim('Use --help for usage information'));
+    process.exit(1);
+  }
+  if (value.startsWith('-')) {
+    console.error(chalk.red(`✗ Missing value for ${flag}`));
+    console.error(chalk.dim(`  Got: ${value} (looks like another option, not a value)`));
     console.error(chalk.dim('Use --help for usage information'));
     process.exit(1);
   }
@@ -166,6 +174,12 @@ function resolveTokenSecret(rootDir) {
   if (process.env.TOKEN_SECRET) return process.env.TOKEN_SECRET;
   const secretFile = join(rootDir, '.token-secret');
   if (existsSync(secretFile)) {
+    // Tighten perms on every read: writeFileSync's `mode` option only
+    // applies to *creation*, so a regenerated file (overwritten in
+    // place) or a manually-touched file may have inherited broader
+    // permissions. Stat-then-chmod also warns the operator if the
+    // file was previously group/world-readable.
+    ensureMode0600(secretFile);
     const loaded = readFileSync(secretFile, 'utf8').trim();
     // Guard against a truncated / empty / accidentally-overwritten
     // secret file. A short-or-empty secret would silently weaken JWT
@@ -177,7 +191,28 @@ function resolveTokenSecret(rootDir) {
   }
   const secret = randomBytes(48).toString('base64');
   writeFileSync(secretFile, secret, { mode: 0o600 });
+  // Explicit chmod covers the overwrite case (mode option in
+  // writeFileSync is ignored when the file already exists).
+  ensureMode0600(secretFile);
   return secret;
+}
+
+function ensureMode0600(path) {
+  try {
+    const mode = statSync(path).mode & 0o777;
+    if (mode !== 0o600) {
+      // Surface the previous mode so operators can investigate how the
+      // file became group/world-readable (or just learn that jspod is
+      // tightening it for them).
+      console.warn(chalk.yellow(
+        `⚠  Tightening permissions on ${path} (was ${mode.toString(8).padStart(3, '0')}, now 600)`
+      ));
+      chmodSync(path, 0o600);
+    }
+  } catch {
+    // chmod is a no-op on Windows and may fail on exotic filesystems.
+    // Don't crash startup over it; the secret is still in use.
+  }
 }
 const tokenSecret = resolveTokenSecret(options.root);
 
