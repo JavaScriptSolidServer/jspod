@@ -306,6 +306,15 @@ console.log(chalk.cyan('   └─ ') + chalk.white('WebID:      ') + chalk.blue.
 console.log('\n' + chalk.dim('Press ') + chalk.bold.red('Ctrl+C') + chalk.dim(' to stop the server\n'));
 console.log(chalk.yellow('⏳ Initializing server components...\n'));
 
+// Point JSS at jspod's minimal data browser instead of the full mashlib
+// bundle. The page-is-the-data philosophy: JSS already embeds the
+// resource as JSON-LD in #dataisland, so the "browser" only needs to
+// paint that data with clickable URIs (~200 bytes of JS + ~200 bytes
+// of CSS, both shipped in this npm package). Version-pinned jsdelivr
+// URL is immutable per version, so a published jspod release will
+// always load the matching browser code.
+const dataBrowserUrl = `https://cdn.jsdelivr.net/npm/jspod@${pkg.version}/data-browser.js`;
+
 // Build jss arguments
 const jssArgs = [
   'start',
@@ -313,7 +322,8 @@ const jssArgs = [
   '--host', options.host,
   '--root', options.root,
   '--notifications',
-  '--conneg'
+  '--conneg',
+  '--mashlib-module', dataBrowserUrl
 ];
 
 if (options.multiuser) {

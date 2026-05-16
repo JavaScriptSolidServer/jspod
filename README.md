@@ -190,9 +190,22 @@ Under the hood, jspod runs JavaScriptSolidServer with these options:
 |---------|----------|-------------|
 | **WebSocket Notifications** | `--notifications` | Real-time updates via WebSockets |
 | **Content Negotiation** | `--conneg` | Turtle, JSON-LD, and more |
-| **Single-user Mode** | `--no-multiuser` | One pod per server (use `--multiuser` flag to change) |
+| **Single-user Mode** | `--no-multiuser --single-user` | One pod per server (use `--multiuser` flag to change) |
+| **Identity Provider** | `--idp` | Built-in IDP so the rung-1 sign-in works out of the box |
+| **Tiny Data Browser** | `--mashlib-module` | ~200 bytes of JS + CSS shipped in this npm package, served from jsdelivr. Replaces the full mashlib bundle by default. |
 | **Passkey Auth** | (built-in) | Automatic in JSS - no flag needed |
 | **WebID** | (built-in) | Core Solid protocol feature |
+
+### The page is the data
+
+By default jspod uses a deliberately minimal data browser — a ~200-byte ES module that renders the JSON-LD data island JSS already embeds in each HTML response, with every URI turned into a clickable link. No SPA, no CDN bundle, no parsing — *the page is the data, and the URIs are the navigation*.
+
+The browser source is two files in this npm package:
+
+- [`data-browser.js`](./data-browser.js) — finds `#dataisland`, renders to `#mashlib`, makes URIs clickable
+- [`data-browser.css`](./data-browser.css) — system font, cream background, soft card
+
+JSS loads them from a version-pinned jsdelivr URL: `https://cdn.jsdelivr.net/npm/jspod@<version>/data-browser.js`. Override with `--mashlib-cdn` (full mashlib from CDN) or `--no-mashlib` (raw RDF responses) via your own JSS invocation if you want something else.
 
 ### Default Configuration
 
