@@ -473,6 +473,17 @@ ready.then((ok) => {
     const indexDst = join(options.root, 'index.html');
     if (existsSync(indexSrc)) copyFileSync(indexSrc, indexDst);
 
+    // signin.html is a jspod-owned static page; always-overwrite so
+    // upgrades to the sign-in flow ship immediately. Pair with a .acl
+    // granting public read so unauthenticated visitors can reach it
+    // (mirrors JSS's index.html.acl pattern).
+    const signinSrc = join(__dirname, 'signin.html');
+    const signinDst = join(options.root, 'signin.html');
+    if (existsSync(signinSrc)) copyFileSync(signinSrc, signinDst);
+    const signinAclSrc = join(__dirname, 'signin.html.acl');
+    const signinAclDst = join(options.root, 'signin.html.acl');
+    if (existsSync(signinAclSrc)) copyFileSync(signinAclSrc, signinAclDst);
+
     const linksSrc = join(__dirname, 'links.jsonld');
     const linksDst = join(options.root, 'public', 'links.jsonld');
     if (existsSync(linksSrc) && !existsSync(linksDst)) {
