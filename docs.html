@@ -40,6 +40,7 @@ nav.toc a{margin-right:1em}
 <a href="#auth-ladder">Auth ladder</a>
 <a href="#backup">Backup &amp; reset</a>
 <a href="#apps">Bundled apps</a>
+<a href="#git">Git remote</a>
 <a href="#links">Links</a>
 </nav>
 
@@ -118,6 +119,21 @@ npx jspod</pre>
 <h2 id="apps">Bundled Solid apps</h2>
 <p>jspod bundles <a href="https://github.com/solid-apps/pilot">Pilot</a> at <code>/public/apps/pilot/</code>. It's served from your own pod, so same-origin sign-in works even on strict browsers (Brave with shields up).</p>
 <p>The bundle is copied skip-if-exists, so you can pin a specific Pilot version by editing the files locally and they'll survive jspod upgrades. Delete <code>pod-data/public/apps/pilot/</code> and restart to re-seed from the current jspod's bundled copy.</p>
+
+<h2 id="git">Git remote (your pod is a git server)</h2>
+<p>jspod enables <a href="https://github.com/JavaScriptSolidServer/JavaScriptSolidServer">JSS</a>'s git HTTP backend by default. Any pod path you have ACL Read on is git-cloneable; any path you have ACL Write on is git-pushable. Fresh paths auto-initialize on first push (JSS 0.0.195+).</p>
+
+<h3>Clone a public path</h3>
+<pre>git clone http://localhost:5444/public/apps/pilot ./pilot</pre>
+
+<h3>Push to a new path (auto-creates the bare repo)</h3>
+<pre>git clone https://github.com/solid-apps/penny.git
+cd penny
+git remote add pod http://localhost:5444/public/apps/penny
+git push pod main</pre>
+<p>Note: <code>git push</code> against a Solid pod needs the same DPoP-bound auth as any other Solid write. Easiest workaround today is to set an <code>Authorization</code> header via <code>git -c http.extraHeader=...</code> with a token obtained from <code>/signin.html</code>. Cleaner ergonomics are a known gap.</p>
+
+<p>To opt out: <code>npx jspod --no-git</code>.</p>
 
 <h2 id="links">Links</h2>
 <ul>
