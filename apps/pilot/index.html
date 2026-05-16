@@ -1,0 +1,1980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pilot — your Solid console</title>
+<meta name="description" content="A minimalist Solid console — your profile, your tasks, your settings. All on your pod.">
+
+<!-- Link preview / Open Graph (renders share cards on Slack, Discord, Mastodon, Facebook, etc.) -->
+<meta property="og:title"       content="pilot — your Solid console">
+<meta property="og:description" content="A minimalist Solid console — your profile, your tasks, your settings. All on your pod.">
+<meta property="og:url"         content="https://solid-apps.github.io/pilot/">
+<meta property="og:type"        content="website">
+<meta property="og:site_name"   content="pilot">
+<meta property="og:image"        content="https://solid-apps.github.io/pilot/og-card.png">
+<meta property="og:image:width"  content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt"    content="pilot — a minimalist Solid console">
+
+<!-- Twitter renders the OG content as a card when these are present -->
+<meta name="twitter:card"        content="summary_large_image">
+<meta name="twitter:title"       content="pilot — your Solid console">
+<meta name="twitter:description" content="A minimalist Solid console — your profile, your tasks, your settings. All on your pod.">
+<meta name="twitter:image"       content="https://solid-apps.github.io/pilot/og-card.png">
+<meta name="twitter:image:alt"   content="pilot — a minimalist Solid console">
+
+<!-- Favicon + iOS home-screen icon -->
+<link rel="icon"             type="image/png" sizes="32x32"   href="favicon.png">
+<link rel="icon"             type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon"             type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="apple-touch-icon"                  sizes="192x192" href="icon-192.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "preact":        "./vendor/preact.js",
+    "preact/hooks":  "./vendor/hooks.js",
+    "htm":           "./vendor/htm.js",
+    "@solid-helper/core/type-index": "https://esm.sh/@solid-helper/core@0.0.2/type-index"
+  }
+}
+</script>
+<style>
+  * { margin: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  :root {
+    --bg: #f5f5f9;
+    --text: #222;
+    --muted: #888;
+    --card: #fff;
+    --border: #e8e8ee;
+    --shadow: 0 1px 2px rgba(0,0,0,.03);
+    --rail-bg: #1e1b2e;
+    --rail-text: #e9e8f3;
+    --rail-muted: #c9c6dc;
+    --rail-hover: #2a2640;
+  }
+  html[data-theme="dark"] {
+    --bg: #15131f;
+    --text: #e9e8f3;
+    --muted: #8d8aa4;
+    --card: #1e1b2e;
+    --border: #2a2640;
+    --shadow: 0 1px 2px rgba(0,0,0,.35);
+    --rail-bg: #0f0d18;
+    --rail-muted: #8d8aa4;
+    --rail-hover: #1e1b2e;
+  }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg); color: var(--text);
+    transition: background .2s, color .2s;
+  }
+
+  /* Shell */
+  .shell {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    min-height: 100vh;
+  }
+  .rail {
+    background: var(--rail-bg);
+    color: var(--rail-text);
+    padding: 28px 18px;
+    border-right: 1px solid rgba(0,0,0,.4);
+    position: sticky; top: 0; align-self: start; min-height: 100vh;
+  }
+  .brand {
+    font: 700 18px/1 'Inter', sans-serif;
+    margin-bottom: 28px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .brand .logo {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; color: #fff;
+  }
+  .nav { list-style: none; display: flex; flex-direction: column; gap: 4px; padding: 0; margin: 16px 0 0; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: 8px;
+    color: var(--rail-muted); text-decoration: none;
+    font-size: 14px; font-weight: 500;
+    transition: background .14s, color .14s;
+  }
+  .nav a:hover { background: var(--rail-hover); color: #fff; }
+  .nav a.active { background: linear-gradient(135deg, #7c3aed, #6366f1); color: #fff; }
+  .nav .ic { font-size: 16px; display: inline-flex; align-items: center; justify-content: center; width: 18px; opacity: 0.85; }
+
+  main {
+    padding: 40px 32px 80px;
+    max-width: 1060px;
+    width: 100%;
+  }
+
+  @media (max-width: 760px) {
+    .shell { grid-template-columns: 1fr; }
+    .rail { position: static; min-height: 0; padding: 16px 20px; display: flex; align-items: center; gap: 20px; }
+    .brand { margin-bottom: 0; }
+    .nav { flex-direction: row; gap: 4px; flex: 1; }
+    .nav .ic { display: none; }
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: var(--shadow);
+  }
+  .card + .card { margin-top: 16px; }
+
+  /* Two-column grid for Profile view */
+  .two-col {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 18px; align-items: start;
+  }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* Profile bits */
+  .hero { display: flex; gap: 26px; align-items: flex-start; }
+  .photo, .photo-fallback {
+    width: 132px; height: 132px; border-radius: 18px; flex: 0 0 auto;
+    box-shadow: 0 4px 16px rgba(20,15,40,.10);
+  }
+  .photo { object-fit: cover; background: #eef; }
+  .photo-fallback {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff; font: 600 56px/132px Georgia, serif;
+    text-align: center;
+  }
+  .hero-meta { flex: 1; min-width: 0; }
+  .name { font: 700 30px/1.15 'Inter', sans-serif; color: var(--text); letter-spacing: -0.6px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+
+  .pronoun-pill {
+    font: 600 11px/1 'Inter', sans-serif; letter-spacing: 0.02em;
+    padding: 4px 10px; border-radius: 999px;
+    background: linear-gradient(135deg, rgba(99,102,241,.10), rgba(236,72,153,.10));
+    color: #4338ca;
+    border: 1px solid rgba(99,102,241,.18);
+    align-self: center;
+  }
+  .role-line {
+    display: flex; align-items: center; gap: 6px;
+    font: 500 13.5px/1.4 'Inter', sans-serif; color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .role-line .role-sep { opacity: 0.5; font-weight: 400; }
+  .role-line .role-org { color: var(--text); font-weight: 600; }
+  .role-line .verified-inline { color: #10b981; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+
+  .webid-bar {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 16px; padding: 8px 8px 8px 12px;
+    border-radius: 8px; background: var(--bg);
+    border: 1px solid var(--border);
+    font: 500 12px/1 ui-monospace, SFMono-Regular, monospace;
+  }
+  .webid-bar-icon { color: var(--muted); display: inline-flex; align-items: center; }
+  .webid-bar-id { color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .webid-bar-btn {
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--muted); cursor: pointer; text-decoration: none;
+    font: 600 10.5px/1 'Inter', sans-serif; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 5px 9px; border-radius: 5px;
+    display: inline-flex; align-items: center; gap: 4px;
+    transition: color .12s, border-color .12s;
+  }
+  .webid-bar-btn:hover { color: #4338ca; border-color: #6366f1; }
+
+  .viewer-banner {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 16px; margin-bottom: 16px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(99,102,241,.08), rgba(34,211,238,.06));
+    border: 1px solid rgba(99,102,241,.18);
+    font: 500 13px/1.4 'Inter', sans-serif;
+    color: var(--text);
+  }
+  .viewer-eye { display: inline-flex; align-items: center; color: #4338ca; }
+  .viewer-back { margin-left: auto; color: #4338ca; text-decoration: none; font-weight: 600; font-size: 12px; }
+  .viewer-back:hover { text-decoration: underline; }
+
+  /* Stat row under the identity card */
+  .stat-row {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px; margin-top: 16px;
+  }
+  .stat {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px;
+    box-shadow: var(--shadow);
+  }
+  .stat-label {
+    font: 700 10.5px/1 'Inter'; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 8px;
+  }
+  .stat-value { font: 600 14px/1.3 'Inter'; color: var(--text); display: flex; align-items: center; gap: 5px; min-width: 0; }
+  .stat-value code { font: 500 13px/1.3 ui-monospace, SFMono-Regular, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stat-value a { color: #4338ca; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+  .stat-value a:hover { text-decoration: underline; }
+  .stat-value.verified { color: #10b981; }
+
+  /* Knows / social graph */
+  .knows-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+  }
+  .knows-card {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--card);
+    text-decoration: none; color: inherit;
+    transition: transform .12s, border-color .12s, box-shadow .12s;
+    min-width: 0;
+  }
+  .knows-card:hover {
+    transform: translateY(-1px);
+    border-color: #6366f1;
+    box-shadow: 0 4px 14px rgba(99,102,241,.10);
+  }
+  .knows-avatar {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff; font: 700 14px/38px 'Inter', sans-serif;
+    text-align: center; flex: 0 0 auto;
+  }
+  .knows-meta { flex: 1; min-width: 0; }
+  .knows-host { font: 600 13.5px/1.2 'Inter', sans-serif; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .knows-path { font: 400 11.5px/1.3 ui-monospace, SFMono-Regular, monospace; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+
+  /* Across the web sidebar */
+  .acct-list { display: flex; flex-direction: column; gap: 8px; }
+  .acct-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 8px;
+    background: var(--bg);
+    font: 400 13.5px/1.3 'Inter', sans-serif;
+    min-width: 0;
+  }
+  .acct-badge {
+    width: 28px; height: 28px; border-radius: 7px;
+    color: #fff; font: 700 10px/28px 'Inter', sans-serif;
+    text-align: center; flex: 0 0 auto;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  }
+  .acct-badge.acct-mastodon { background: #6364ff; }
+  .acct-badge.acct-github   { background: #18171c; }
+  .acct-badge.acct-bluesky, .acct-badge.acct-bsky { background: #00aaff; }
+  .acct-badge.acct-orcid    { background: #a6ce39; }
+  .acct-badge.acct-matrix   { background: #000000; }
+  .acct-badge.acct-twitter, .acct-badge.acct-x { background: #1da1f2; }
+  .acct-badge.acct-linkedin { background: #0a66c2; }
+  .acct-meta { flex: 1; min-width: 0; }
+  .acct-name { color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .acct-platform { color: var(--muted); font-size: 11.5px; margin-top: 1px; }
+
+  /* Pod setup card */
+  .podsetup-found {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: #10b981; font: 500 12.5px/1.4 'Inter', sans-serif;
+  }
+  .podsetup-found a {
+    color: var(--text); font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 12px; text-decoration: none;
+    word-break: break-all;
+  }
+  .podsetup-found a:hover { color: #6366f1; text-decoration: underline; }
+  .podsetup-btn {
+    background: linear-gradient(135deg, #6366f1, #5a3df0);
+    color: #fff; border: 0; border-radius: 8px;
+    padding: 8px 14px;
+    font: 600 12.5px/1 'Inter', sans-serif;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(99,102,241,.25);
+    transition: transform .12s, box-shadow .12s;
+  }
+  .podsetup-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(99,102,241,.35); }
+  .podsetup-btn:disabled { opacity: 0.7; cursor: default; transform: none; box-shadow: 0 4px 14px rgba(99,102,241,.18); }
+  .podsetup-err {
+    margin-top: 8px; padding: 8px 10px; border-radius: 6px;
+    background: #fee2e2; color: #991b1b;
+    font: 400 12px/1.45 ui-monospace, SFMono-Regular, monospace;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .pronoun { font: 400 14px/1; color: #6366f1; }
+  .facts { margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; font-size: 14px; color: #444; }
+  @media (max-width: 600px) { .facts { grid-template-columns: 1fr; } }
+  .fact { display: flex; align-items: center; gap: 8px; }
+  .fact .ic { opacity: .55; display: inline-flex; align-items: center; }
+  .fact a { color: inherit; text-decoration: none; }
+  .fact a:hover { color: #6366f1; }
+
+  .section-title { font: 700 12px/1 'Inter', sans-serif; color: var(--muted); margin-bottom: 14px; letter-spacing: 0.12em; text-transform: uppercase; }
+  .prose { font: 400 16px/1.7 Georgia, serif; color: #2a2a2a; }
+  .side-title { font: 700 15px/1 'Inter', sans-serif; color: #1a1a1a; margin-bottom: 12px; }
+  .pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill { padding: 3px 11px; border-radius: 999px; background: #eef0fe; color: #4338ca; font-size: 13px; font-weight: 500; }
+  .list-plain { list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: #333; }
+
+  /* Contacts grid */
+  .page-title { font: italic 400 36px/1.1 Georgia, serif; color: #1a1a1a; letter-spacing: -0.6px; margin-bottom: 4px; }
+  .page-sub { font: 400 14px/1.5 'Inter', -apple-system, sans-serif; color: #888; margin-bottom: 8px; }
+  .page-count { font: 600 11px/1 'Inter'; letter-spacing: .12em; text-transform: uppercase; color: #999; margin-bottom: 22px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+  .contact-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px; display: flex; gap: 12px; align-items: center;
+    text-decoration: none; color: inherit; transition: transform .16s, border-color .16s, box-shadow .16s;
+  }
+  .contact-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.06); border-color: #6366f1; }
+  .avatar, .avatar-fb { width: 48px; height: 48px; border-radius: 50%; flex: 0 0 auto; }
+  .avatar { object-fit: cover; }
+  .avatar-fb {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff; font: 600 19px/48px Georgia, serif;
+    text-align: center;
+  }
+  .c-name { font: 600 15px/1.2 'Inter'; color: #1a1a1a; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .c-sub { font: 400 12.5px/1.4 'Inter'; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Calendar card */
+  .ev-card {
+    display: flex; gap: 24px; align-items: flex-start;
+  }
+  .ev-date { flex: 0 0 auto; width: 88px; border: 1px solid #e8e8ee; border-radius: 12px; overflow: hidden; text-align: center; }
+  .ev-month { background: #ef4444; color: #fff; font: 600 12px/1 'Inter'; padding: 7px; letter-spacing: .18em; text-transform: uppercase; }
+  .ev-day { font: 500 40px/1 Georgia, serif; color: #1a1a1a; padding: 14px 0; background: #fafaf8; }
+  .ev-meta { flex: 1; min-width: 0; }
+  .ev-name { font: 500 24px/1.2 Georgia, serif; color: #1a1a1a; letter-spacing: -0.3px; margin-bottom: 6px; }
+  .ev-when { font: 500 13px/1.4 'Inter'; color: #666; margin-bottom: 16px; }
+  .ev-summary { font: 400 15px/1.6 Georgia, serif; color: #444; margin-bottom: 16px; }
+  .ev-row { display: flex; gap: 8px; align-items: center; padding-top: 12px; margin-top: 12px; border-top: 1px solid #e8e8ee; font: 400 13px/1.4 'Inter'; color: #666; }
+  .ev-row + .ev-row { border-top: none; padding-top: 0; margin-top: 5px; }
+  .ev-row a { color: #1a5276; text-decoration: none; }
+  .ev-row a:hover { color: #6366f1; }
+  .ev-row .ic { opacity: 0.6; }
+
+  .footer-tag {
+    margin-top: 28px; text-align: center;
+    font: 500 11px/1.4 ui-monospace, monospace;
+    color: #888; letter-spacing: 0.05em;
+  }
+  .footer-tag code { padding: 2px 7px; border-radius: 4px; background: #eef0fe; color: #4338ca; }
+
+  /* Settings view */
+  .settings-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 0; gap: 16px;
+  }
+  .settings-row + .settings-row { border-top: 1px solid var(--border); }
+  .settings-label { font: 500 14px/1.4 'Inter'; color: var(--text); }
+  .settings-help  { font: 400 12.5px/1.4 'Inter'; color: var(--muted); margin-top: 2px; }
+  .seg {
+    display: inline-flex; padding: 3px; border-radius: 999px;
+    background: var(--bg); border: 1px solid var(--border);
+  }
+  .seg button {
+    padding: 6px 14px; border: 0; background: transparent;
+    font: 500 13px/1 'Inter'; color: var(--muted);
+    border-radius: 999px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .seg button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .settings-input {
+    padding: 8px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+    font: 400 13px/1.4 ui-monospace, monospace;
+    width: 320px; max-width: 60%; outline: none;
+  }
+  .settings-input:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.18); }
+  .island-row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 0; font: 400 13px/1.4 ui-monospace, monospace;
+    color: var(--muted);
+  }
+  .island-row + .island-row { border-top: 1px solid var(--border); }
+  .island-badge { padding: 2px 9px; border-radius: 6px; background: #eef0fe; color: #4338ca; font-weight: 600; font-size: 12px; }
+
+  /* Tasks kanban — kanban styles + drag/drop come from tracker-pane.js
+     (auto-injects .tp-* namespaced styles on first mount) */
+  .columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 18px; }
+  .tracker-wrap { position: relative; }
+  .tracker-wrap .tracker-delete {
+    position: absolute; top: 8px; right: 8px; z-index: 2;
+    width: 22px; height: 22px; padding: 0; line-height: 18px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border); background: var(--card); color: var(--muted);
+    border-radius: 50%; font-size: 16px; cursor: pointer;
+    opacity: 0; transition: opacity .12s, color .12s, border-color .12s;
+  }
+  .tracker-wrap:hover .tracker-delete,
+  .tracker-wrap .tracker-delete:focus-visible { opacity: 1; }
+  .tracker-wrap .tracker-delete:hover { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+  .err { background: #fee2e2; color: #991b1b; padding: 10px 14px; border-radius: 8px; font: 400 13px/1.4 'Inter'; }
+
+  /* Onboarding */
+  .onboard {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 32px 20px;
+    background:
+      radial-gradient(circle at 25% 0%, rgba(99,102,241,0.10) 0%, transparent 45%),
+      radial-gradient(circle at 75% 100%, rgba(16,185,129,0.08) 0%, transparent 45%),
+      var(--bg);
+  }
+  .onboard-card {
+    max-width: 480px; width: 100%;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 18px; padding: 44px 36px;
+    text-align: center;
+    box-shadow: 0 18px 60px rgba(0,0,0,.06);
+  }
+  .onboard-logo {
+    width: 64px; height: 64px; margin: 0 auto 18px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    color: #fff; display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 24px rgba(99,102,241,.35);
+  }
+  .onboard-title { font: 700 32px/1 'Inter'; color: var(--text); letter-spacing: -0.5px; margin-bottom: 10px; }
+  .onboard-tag   { font: 400 15px/1.55 'Inter'; color: var(--muted); margin-bottom: 28px; }
+  .onboard-list {
+    text-align: left; margin: 0 auto 28px; max-width: 340px;
+    display: flex; flex-direction: column; gap: 8px;
+    font: 400 14px/1.55 'Inter'; color: var(--text);
+  }
+  .onboard-list strong { color: #4338ca; font-weight: 600; }
+  .onboard-cta {
+    padding: 14px 18px; border-radius: 10px;
+    background: #eef0fe; color: #4338ca;
+    font: 500 13.5px/1.5 'Inter';
+  }
+
+  /* Command palette launcher (in the rail) */
+  .cmd-launcher {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; margin-top: 16px; padding: 8px 12px;
+    border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.04);
+    color: var(--rail-muted); border-radius: 8px;
+    font: 500 13px/1 'Inter'; cursor: pointer;
+    transition: background .12s, color .12s, border-color .12s;
+  }
+  .cmd-launcher:hover { background: rgba(255,255,255,.08); color: var(--rail-text); border-color: rgba(255,255,255,.16); }
+  .cmd-launcher-icon { opacity: 0.6; display: inline-flex; align-items: center; }
+  .cmd-launcher-kbd { margin-left: auto; display: inline-flex; gap: 2px; }
+  .cmd-launcher-kbd kbd {
+    font: 600 10px/1 'Inter'; padding: 3px 5px;
+    background: rgba(255,255,255,.08); color: var(--rail-muted);
+    border-radius: 4px; border: 1px solid rgba(255,255,255,.08);
+  }
+
+  /* Command palette modal */
+  .cmd-backdrop {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,.45); backdrop-filter: blur(2px);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding-top: 14vh;
+  }
+  .cmd-modal {
+    width: min(640px, 92vw); max-height: 70vh;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden;
+    display: flex; flex-direction: column;
+    box-shadow: 0 24px 80px rgba(0,0,0,.25), 0 4px 16px rgba(0,0,0,.12);
+  }
+  .cmd-input {
+    width: 100%; padding: 16px 20px;
+    border: 0; outline: none; background: transparent; color: var(--text);
+    font: 400 16px/1.4 'Inter';
+    border-bottom: 1px solid var(--border);
+  }
+  .cmd-input::placeholder { color: var(--muted); }
+  .cmd-list { overflow-y: auto; padding: 6px 0; }
+  .cmd-cat {
+    font: 600 10.5px/1 'Inter'; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); padding: 10px 16px 6px;
+  }
+  .cmd-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 16px; cursor: pointer;
+    font: 400 14px/1.2 'Inter'; color: var(--text);
+  }
+  .cmd-item.cmd-selected { background: rgba(99,102,241,.12); }
+  .cmd-icon { width: 20px; display: inline-flex; align-items: center; justify-content: center; opacity: 0.85; }
+  .cmd-label { flex: 1; }
+  .cmd-shortcut {
+    font: 500 11px/1 'Inter'; color: var(--muted);
+    padding: 3px 7px; border-radius: 4px;
+    background: var(--bg); border: 1px solid var(--border);
+  }
+  .cmd-empty { padding: 28px 20px; text-align: center; color: var(--muted); font: 400 14px/1.4 'Inter'; }
+  .cmd-footer {
+    display: flex; gap: 16px; padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    font: 500 11px/1 'Inter'; color: var(--muted);
+  }
+  .cmd-footer kbd {
+    font: 600 10px/1 'Inter'; padding: 3px 5px;
+    background: var(--bg); border-radius: 4px;
+    border: 1px solid var(--border); margin-right: 3px;
+    display: inline-block;
+  }
+
+  /* EditableText (Profile) */
+  .e { cursor: text; border-radius: 4px; padding: 1px 5px; margin: -1px -5px; transition: background .12s ease; outline: none; display: inline-block; max-width: 100%; }
+  .e:hover { background: #eef0fe; }
+  .e.empty { color: #aaa; font-style: italic; }
+  .e-block { display: block; }
+  .e-input, .e-area { border: 1px solid #6366f1; border-radius: 4px; padding: 2px 6px; font: inherit; color: inherit; outline: none; background: #fff; width: 100%; box-shadow: 0 0 0 2px rgba(99,102,241,.18); }
+  .e-area { min-height: 6em; resize: vertical; line-height: 1.65; font-family: Georgia, serif; }
+</style>
+</head>
+<body>
+
+<!-- xlogin: mounts its own floating Login/Sign in button in the bottom-right
+     and exposes window.xlogin.{type,id,authFetch} + document events
+     'xlogin' / 'xlogout'. -->
+<script src="https://unpkg.com/xlogin"></script>
+
+<div id="app"></div>
+
+<script type="module">
+import { h, render } from 'preact'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'preact/hooks'
+import htm from 'htm'
+import { addRegistration, removeRegistration } from '@solid-helper/core/type-index'
+
+const html = htm.bind(h)
+
+// --- icons (Lucide-style SVG paths, MIT) -----------------------------------
+// Inline rather than CDN: zero dep, tiny, currentColor-tinted.
+
+const ICONS = {
+  user:        ['M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2', 'M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'],
+  'check-sq':  ['M9 11l3 3L22 4', 'M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'],
+  settings:    ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z'],
+  'map-pin':   ['M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z', 'M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'],
+  phone:       ['M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z'],
+  mail:        ['M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z', 'M22 6l-10 7L2 6'],
+  globe:       ['M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z', 'M3.6 9h16.8 M3.6 15h16.8', 'M11.5 3a17 17 0 0 0 0 18 M12.5 3a17 17 0 0 1 0 18'],
+  search:      ['M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z', 'M21 21l-4.35-4.35'],
+  sun:         ['M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z', 'M12 1v2 M12 21v2 M4.22 4.22l1.42 1.42 M18.36 18.36l1.42 1.42 M1 12h2 M21 12h2 M4.22 19.78l1.42-1.42 M18.36 5.64l1.42-1.42'],
+  moon:        ['M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'],
+  eye:         ['M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'],
+  link:        ['M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72', 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72'],
+  refresh:     ['M23 4v6h-6 M1 20v-6h6', 'M3.51 9a9 9 0 0 1 14.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0 0 20.49 15'],
+  send:        ['M22 2L11 13', 'M22 2l-7 20-4-9-9-4 20-7z'],
+}
+
+function Icon({ name, size = 18, stroke = 1.75 }) {
+  const paths = ICONS[name]
+  if (!paths) return null
+  return html`<svg viewBox="0 0 24 24" width=${size} height=${size}
+    fill="none" stroke="currentColor" stroke-width=${stroke}
+    stroke-linecap="round" stroke-linejoin="round">
+    ${paths.map(d => html`<path d=${d} />`)}
+  </svg>`
+}
+
+// --- xlogin integration ----------------------------------------------------
+// Listens for 'xlogin'/'xlogout' events and exposes the current identity.
+
+function useXlogin() {
+  const [identity, setIdentity] = useState(() =>
+    window.xlogin && window.xlogin.id ? { type: window.xlogin.type, id: window.xlogin.id } : null
+  )
+  useEffect(() => {
+    const onIn  = (e) => setIdentity({ type: e.detail.type, id: e.detail.id })
+    const onOut = () => setIdentity(null)
+    document.addEventListener('xlogin',  onIn)
+    document.addEventListener('xlogout', onOut)
+    // Late-load: xlogin script may attach window.xlogin after our first render.
+    const t = setInterval(() => {
+      if (window.xlogin && window.xlogin.id && !identity)
+        setIdentity({ type: window.xlogin.type, id: window.xlogin.id })
+    }, 500)
+    return () => { document.removeEventListener('xlogin', onIn); document.removeEventListener('xlogout', onOut); clearInterval(t) }
+  }, [])
+  return identity
+}
+
+// Fetch a Solid WebID document as JSON-LD. Most Solid pods serve Turtle by
+// default; we rely on content negotiation via Accept: application/ld+json.
+// Pods that don't support JSON-LD output will fail here — that's a finding,
+// not a bug; stage 5 or later may introduce a lightweight Turtle parser.
+// Normalize a JSON-LD subject against common name/contact predicates so our
+// UI (which expects bare keys like `name`, `email`, `img`) can render it.
+// Handles both compact and expanded IRIs for foaf/vcard.
+const PREDICATES = {
+  name:     ['name', 'foaf:name', 'http://xmlns.com/foaf/0.1/name', 'vcard:fn', 'http://www.w3.org/2006/vcard/ns#fn'],
+  nick:     ['nick', 'foaf:nick', 'http://xmlns.com/foaf/0.1/nick'],
+  email:    ['email', 'foaf:mbox', 'http://xmlns.com/foaf/0.1/mbox', 'vcard:hasEmail', 'http://www.w3.org/2006/vcard/ns#hasEmail'],
+  homepage: ['homepage', 'foaf:homepage', 'http://xmlns.com/foaf/0.1/homepage', 'vcard:hasURL', 'http://www.w3.org/2006/vcard/ns#hasURL'],
+  img:      ['img', 'foaf:img', 'http://xmlns.com/foaf/0.1/img', 'foaf:depiction', 'http://xmlns.com/foaf/0.1/depiction', 'vcard:hasPhoto', 'http://www.w3.org/2006/vcard/ns#hasPhoto'],
+}
+function valueOf(v) {
+  if (!v) return null
+  if (typeof v === 'string') return v
+  if (Array.isArray(v)) return v.length ? valueOf(v[0]) : null
+  return v['@id'] || v['@value'] || null
+}
+function pickValue(obj, preds) {
+  for (const p of preds) if (obj[p] != null) { const v = valueOf(obj[p]); if (v) return v }
+  return null
+}
+function normalizeProfile(jsonld) {
+  const out = { '@id': jsonld['@id'], '@type': jsonld['@type'] }
+  for (const [field, preds] of Object.entries(PREDICATES)) {
+    const v = pickValue(jsonld, preds)
+    if (v) out[field] = field === 'email' ? v.replace(/^mailto:/, '') : v
+  }
+  return out
+}
+
+async function fetchWebidProfile(webid) {
+  const url = webid.replace(/#.*$/, '')  // strip fragment
+  const fetcher = (window.xlogin && window.xlogin.authFetch) || fetch
+  const res = await fetcher(url, { headers: { Accept: 'application/ld+json' } })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  const ct = res.headers.get('content-type') || ''
+  if (!ct.includes('ld+json') && !ct.includes('application/json'))
+    throw new Error(`pod returned ${ct || 'unknown type'}; need application/ld+json (Turtle support = later stage)`)
+  const doc = await res.json()
+  // JSON-LD profiles vary: could be a single object, a @graph array, or a
+  // framed doc. Grab the subject matching the webid's fragment, else first.
+  const frag = webid.includes('#') ? webid.split('#')[1] : null
+  const graph = Array.isArray(doc['@graph']) ? doc['@graph'] : (Array.isArray(doc) ? doc : [doc])
+  const match = frag ? graph.find(n => (n['@id'] || '').endsWith('#' + frag)) : graph[0]
+  return normalizeProfile(match || graph[0])
+}
+
+function useProfileFor(webid) {
+  const [state, setState] = useState({ loading: false, error: null, data: null })
+  useEffect(() => {
+    if (!webid) { setState({ loading: false, error: null, data: null }); return }
+    let cancelled = false
+    setState({ loading: true, error: null, data: null })
+    fetchWebidProfile(webid)
+      .then(data => { if (!cancelled) setState({ loading: false, error: null, data }) })
+      .catch(err => { if (!cancelled) setState({ loading: false, error: err.message, data: null }) })
+    return () => { cancelled = true }
+  }, [webid])
+  return state
+}
+
+// --- TypeIndex discovery ---------------------------------------------------
+// 1. Fetch WebID, find solid:publicTypeIndex URL.
+// 2. Fetch the TypeIndex (JSON-LD).
+// 3. Walk schema:itemListElement (or any TypeRegistration nodes) and pull
+//    out registrations with both solid:forClass and either solid:instance
+//    or solid:instanceContainer.
+
+async function fetchJsonLd(url) {
+  const fetcher = (window.xlogin && window.xlogin.authFetch) || fetch
+  const res = await fetcher(url, { headers: { Accept: 'application/ld+json' } })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  const ct = res.headers.get('content-type') || ''
+  if (!ct.includes('ld+json') && !ct.includes('application/json'))
+    throw new Error(`pod returned ${ct} (need JSON-LD)`)
+  return res.json()
+}
+
+// --- Per-pod preferences (read/write prefs.jsonld) -------------------------
+
+const PILOT_NS = 'https://solid-apps.github.io/pilot/ns#'
+
+function readPilotKey(doc, key) {
+  if (!doc) return undefined
+  return doc['pilot:' + key] ?? doc[PILOT_NS + key]
+}
+
+async function writePilotPrefs(prefsUrl, patch) {
+  const fetcher = (window.xlogin && window.xlogin.authFetch) || fetch
+  const r = await fetcher(prefsUrl, { headers: { Accept: 'application/ld+json' } })
+  if (!r.ok) throw new Error(`GET prefs ${r.status} ${r.statusText}`)
+  const doc = await r.json()
+  const ctx = (typeof doc['@context'] === 'object' && !Array.isArray(doc['@context']))
+              ? doc['@context'] : (doc['@context'] = {})
+  if (!Object.values(ctx).includes(PILOT_NS)) ctx.pilot = PILOT_NS
+  for (const [k, v] of Object.entries(patch)) doc['pilot:' + k] = v
+  const put = await fetcher(prefsUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/ld+json' },
+    body: JSON.stringify(doc, null, 2),
+  })
+  if (!put.ok) throw new Error(`PUT prefs ${put.status} ${put.statusText}`)
+}
+
+// --- Pod-setup write helpers (Phase 2: HTML-WebID branch) -----------------
+
+// Add a predicate to the JSON-LD island inside an HTML WebID document.
+// Preserves all surrounding HTML byte-for-byte; only the JSON inside the
+// <script type="application/ld+json"> block changes.
+async function addPredicateToHtmlWebid(docUrl, frag, namespace, predicateLocal, valueRef) {
+  const fetcher = (window.xlogin && window.xlogin.authFetch) || fetch
+  const res = await fetcher(docUrl, { headers: { Accept: 'text/html' } })
+  if (!res.ok) throw new Error(`GET ${res.status} ${res.statusText}`)
+  const ct = (res.headers.get('content-type') || '').toLowerCase()
+  if (!ct.includes('text/html')) throw new Error(`expected text/html, got ${ct || 'unknown'}`)
+  const html = await res.text()
+
+  const islandRe = /<script\s+type=["']application\/ld\+json["']\s*>([\s\S]*?)<\/script>/i
+  const m = html.match(islandRe)
+  if (!m) throw new Error('no <script type="application/ld+json"> island in HTML')
+  let json
+  try { json = JSON.parse(m[1].trim()) } catch (e) { throw new Error('island JSON parse: ' + e.message) }
+
+  // Pick or add a prefix for the namespace
+  const ctx = (typeof json['@context'] === 'object' && !Array.isArray(json['@context']))
+            ? json['@context'] : (json['@context'] = {})
+  let prefix = null
+  for (const [p, ns] of Object.entries(ctx)) { if (ns === namespace) { prefix = p; break } }
+  if (!prefix) {
+    prefix = predicateLocal === 'preferencesFile' ? 'pim' : 'solid'
+    ctx[prefix] = namespace
+  }
+  const key = prefix + ':' + predicateLocal
+
+  // Find the matching subject (by frag) — fall back to top-level
+  const subjects = Array.isArray(json['@graph']) ? json['@graph'] : [json]
+  const subj = (frag && subjects.find(s => s['@id'] === frag)) || subjects[0]
+  subj[key] = { '@id': valueRef }
+
+  // Re-serialize and splice back
+  const newIsland = '\n' + JSON.stringify(json, null, 2) + '\n'
+  const newHtml = html.replace(islandRe, (full, body) => full.replace(body, newIsland))
+
+  const putRes = await fetcher(docUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'text/html' },
+    body: newHtml,
+  })
+  if (!putRes.ok) throw new Error(`PUT WebID failed: ${putRes.status} ${putRes.statusText}`)
+}
+
+// Create a pod resource (PUT seed) and link it from the WebID.
+// Returns { ok: true } on full success, or { ok: false, message } on failure.
+async function createPodResource({ webid, relPath, seed, namespace, predicateLocal }) {
+  const fetcher = (window.xlogin && window.xlogin.authFetch) || fetch
+  const docUrl = webid.replace(/#.*$/, '')
+  const frag   = webid.includes('#') ? '#' + webid.split('#')[1] : null
+  const newUrl = new URL(relPath, docUrl).href
+
+  // 1. PUT the seed file
+  const r1 = await fetcher(newUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/ld+json' },
+    body: JSON.stringify(seed, null, 2),
+  })
+  if (!r1.ok) return { ok: false, message: `Create file failed: ${r1.status} ${r1.statusText}` }
+
+  // 2. Update WebID to link the file
+  const head = await fetcher(docUrl, { method: 'HEAD' }).catch(() => null)
+  const ct = (head && head.headers.get('content-type') || '').toLowerCase()
+  const isHtml = ct.includes('text/html') || docUrl.endsWith('/')
+  if (!isHtml) {
+    return { ok: false, message: `File created at ${newUrl}. WebID is RDF (${ct || 'unknown'}); SPARQL PATCH not yet implemented — add this manually:\n\n  <${frag || webid}> ${predicateLocal === 'preferencesFile' ? 'space' : 'solid'}:${predicateLocal} <${relPath}> .` }
+  }
+  try {
+    await addPredicateToHtmlWebid(docUrl, frag, namespace, predicateLocal, relPath)
+  } catch (e) {
+    return { ok: false, message: `File created at ${newUrl}, but linking failed: ${e.message}` }
+  }
+  return { ok: true, url: newUrl }
+}
+
+// Add a new solid:TypeRegistration entry to a JSON-LD TypeIndex.
+// Returns the fragment id used for the new entry.
+// Pure JSON-LD mutation is delegated to @solid-helper/core.
+async function addTypeRegistration(typeIndexUrl, { forClass, instance }) {
+  const fetcher = (window.xlogin && window.xlogin.authFetch) || fetch
+  const res = await fetcher(typeIndexUrl, { headers: { Accept: 'application/ld+json' } })
+  if (!res.ok) throw new Error(`GET TypeIndex ${res.status} ${res.statusText}`)
+  const ti = await res.json()
+
+  const { typeIndex: updated, id } = addRegistration(ti, { forClass, instance })
+
+  const putRes = await fetcher(typeIndexUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/ld+json' },
+    body: JSON.stringify(updated, null, 2),
+  })
+  if (!putRes.ok) throw new Error(`PUT TypeIndex ${putRes.status} ${putRes.statusText}`)
+  return id
+}
+
+// Remove a solid:TypeRegistration entry from a JSON-LD TypeIndex by instance URL.
+// Returns true if an entry was removed, false if no match was found.
+// Pure JSON-LD mutation is delegated to @solid-helper/core.
+async function removeTypeRegistration(typeIndexUrl, instanceUrl) {
+  const fetcher = (window.xlogin && window.xlogin.authFetch) || fetch
+  const res = await fetcher(typeIndexUrl, { headers: { Accept: 'application/ld+json' } })
+  if (!res.ok) throw new Error(`GET TypeIndex ${res.status} ${res.statusText}`)
+  const ti = await res.json()
+
+  const { typeIndex: updated, removed } = removeRegistration(ti, { instance: instanceUrl })
+  if (!removed) return false
+
+  const putRes = await fetcher(typeIndexUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/ld+json' },
+    body: JSON.stringify(updated, null, 2),
+  })
+  if (!putRes.ok) throw new Error(`PUT TypeIndex ${putRes.status} ${putRes.statusText}`)
+  return true
+}
+
+// Delete a tracker: always remove the TypeIndex entry; optionally also DELETE
+// the underlying data file. The instance URL typically ends in #this — we
+// strip the fragment to address the file resource.
+async function deleteTracker({ typeIndexUrl, instanceUrl, purgeData = false }) {
+  const fetcher = (window.xlogin && window.xlogin.authFetch) || fetch
+  await removeTypeRegistration(typeIndexUrl, instanceUrl)
+  if (purgeData) {
+    const fileUrl = instanceUrl.replace(/#.*$/, '')
+    const r = await fetcher(fileUrl, { method: 'DELETE' })
+    // 404 is fine — the file may already be gone (orphan registration).
+    if (!r.ok && r.status !== 404) throw new Error(`DELETE data ${r.status} ${r.statusText}`)
+  }
+}
+
+// Resolve a pod's storage URL from the WebID profile's pim:storage predicate.
+// Falls back to the WebID's parent URL only if the profile doesn't expose one
+// — which is wrong for pods with WebID at /profile/card[.jsonld] (resolves to
+// /profile/) but matches today's behaviour for personal-site WebIDs at root.
+async function resolvePodStorage(webid) {
+  try {
+    const webidDoc = await fetchJsonLd(webid.replace(/#.*$/, ''))
+    const frag    = webid.includes('#') ? webid.split('#')[1] : null
+    const graph   = Array.isArray(webidDoc['@graph']) ? webidDoc['@graph']
+                  : Array.isArray(webidDoc) ? webidDoc : [webidDoc]
+    const me      = (frag ? graph.find(n => (n['@id'] || '').endsWith('#' + frag)) : null) || graph[0]
+    const stRef   = me?.['pim:storage']
+                 || me?.['http://www.w3.org/ns/pim/space#storage']
+                 || me?.['storage']    // bare alias used by JSS-generated profiles
+    const stRel   = typeof stRef === 'string' ? stRef : stRef?.['@id']
+    if (stRel) return new URL(stRel, webid).href
+  } catch { /* fall through to webid-dirname heuristic */ }
+  return webid.replace(/#.*$/, '').replace(/[^/]*$/, '')
+}
+
+// Create a new wf:Tracker data file and register it in the TypeIndex.
+async function createTracker({ webid, typeIndexUrl, name }) {
+  const fetcher = (window.xlogin && window.xlogin.authFetch) || fetch
+  let podRoot = await resolvePodStorage(webid)
+  if (!podRoot.endsWith('/')) podRoot += '/'
+  const slug = name.toLowerCase().replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '')
+  if (!slug) throw new Error('invalid tracker name')
+  const dataUrl = `${podRoot}public/tracker/${slug}-data.jsonld`
+
+  const seed = {
+    '@context': {
+      ical: 'http://www.w3.org/2002/12/cal/ical#',
+      wf:   'http://www.w3.org/2005/01/wf/flow#',
+      dct:  'http://purl.org/dc/terms/',
+      summary: 'ical:summary', status: 'ical:status',
+      created: 'dct:created', modified: 'ical:lastModified',
+      title: 'dct:title', initialState: 'wf:initialState', issue: 'wf:issue',
+      Tracker: 'wf:Tracker', Vtodo: 'ical:Vtodo',
+    },
+    '@id': '#this',
+    '@type': 'Tracker',
+    title: name,
+    created: new Date().toISOString(),
+    initialState: 'NEEDS-ACTION',
+    issue: [],
+  }
+
+  const r1 = await fetcher(dataUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/ld+json' },
+    body: JSON.stringify(seed, null, 2),
+  })
+  if (!r1.ok) throw new Error(`PUT tracker data ${r1.status} ${r1.statusText}`)
+
+  await addTypeRegistration(typeIndexUrl, {
+    forClass: 'http://www.w3.org/2005/01/wf/flow#Tracker',
+    instance: dataUrl + '#this',
+  })
+
+  return dataUrl + '#this'
+}
+
+async function putJsonLd(url, body) {
+  const fetcher = (window.xlogin && window.xlogin.authFetch) || fetch
+  const r = await fetcher(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/ld+json' },
+    body: JSON.stringify(body, null, 2),
+  })
+  if (!r.ok) throw new Error(`PUT failed: ${r.status} ${r.statusText}`)
+  return r
+}
+
+const idOf = (v) => typeof v === 'string' ? v : (v && v['@id']) || null
+
+async function fetchTypeIndex(webid) {
+  const webidDoc = await fetchJsonLd(webid.replace(/#.*$/, ''))
+  const graph = Array.isArray(webidDoc['@graph']) ? webidDoc['@graph'] : (Array.isArray(webidDoc) ? webidDoc : [webidDoc])
+  const frag = webid.includes('#') ? webid.split('#')[1] : null
+  const me = (frag ? graph.find(n => (n['@id'] || '').endsWith('#' + frag)) : null) || graph[0]
+
+  // JSS-generated profiles alias the predicate as a bare key via @context
+  // (e.g. { "publicTypeIndex": "settings/publicTypeIndex.jsonld" } rather
+  // than "solid:publicTypeIndex"); accept any of the three shapes.
+  const tiRef = me['solid:publicTypeIndex']
+             || me['http://www.w3.org/ns/solid/terms#publicTypeIndex']
+             || me['publicTypeIndex']
+  const tiId = idOf(tiRef)
+  if (!tiId) throw new Error('no solid:publicTypeIndex on WebID')
+
+  // Resolve relative URL against the WebID doc URL.
+  const tiUrl = new URL(tiId, webid).href
+  const ti = await fetchJsonLd(tiUrl)
+
+  // Collect registration nodes — they may be inside schema:itemListElement,
+  // a @graph, or scattered. Anything with solid:forClass + (instance|container).
+  const nodes = []
+  const collect = (x) => {
+    if (!x || typeof x !== 'object') return
+    if (Array.isArray(x)) { x.forEach(collect); return }
+    if (x['solid:forClass'] || x['http://www.w3.org/ns/solid/terms#forClass']) nodes.push(x)
+    for (const v of Object.values(x)) if (typeof v === 'object') collect(v)
+  }
+  collect(ti)
+
+  return { typeIndexUrl: tiUrl, registrations: nodes.map(n => ({
+    forClass:          idOf(n['solid:forClass'] || n['http://www.w3.org/ns/solid/terms#forClass']),
+    instance:          idOf(n['solid:instance'] || n['http://www.w3.org/ns/solid/terms#instance']),
+    instanceContainer: idOf(n['solid:instanceContainer'] || n['http://www.w3.org/ns/solid/terms#instanceContainer']),
+  })).filter(r => r.forClass && (r.instance || r.instanceContainer)) }
+}
+
+function useTypeIndex(webid) {
+  const [state, setState] = useState({ loading: false, error: null, data: null })
+  useEffect(() => {
+    if (!webid) { setState({ loading: false, error: null, data: null }); return }
+    let cancelled = false
+    setState({ loading: true, error: null, data: null })
+    fetchTypeIndex(webid)
+      .then(data => { if (!cancelled) setState({ loading: false, error: null, data }) })
+      .catch(err => { if (!cancelled) setState({ loading: false, error: err.message, data: null }) })
+    return () => { cancelled = true }
+  }, [webid])
+  return state
+}
+
+function findRegistrations(typeIndex, classIri) {
+  if (!typeIndex) return []
+  return typeIndex.registrations.filter(r => r.forClass === classIri)
+}
+
+// Fetch a list of instance URLs (from registrations) and return their parsed bodies.
+function useInstances(urls) {
+  const key = JSON.stringify(urls || [])
+  const [state, setState] = useState({ loading: false, error: null, data: null })
+  useEffect(() => {
+    if (!urls || urls.length === 0) { setState({ loading: false, error: null, data: null }); return }
+    let cancelled = false
+    setState({ loading: true, error: null, data: null })
+    Promise.all(urls.map(u => fetchJsonLd(u.replace(/#.*$/, '')).then(doc => ({ url: u, doc })).catch(err => ({ url: u, error: err.message }))))
+      .then(results => { if (!cancelled) setState({ loading: false, error: null, data: results }) })
+      .catch(err => { if (!cancelled) setState({ loading: false, error: err.message, data: null }) })
+    return () => { cancelled = true }
+  }, [key])
+  return state
+}
+
+// --- routing ---------------------------------------------------------------
+
+function useHashRoute(fallback) {
+  const parse = () => (window.location.hash || '').replace(/^#\/?/, '') || fallback
+  const [route, setRoute] = useState(parse)
+  useEffect(() => {
+    const onChange = () => setRoute(parse())
+    window.addEventListener('hashchange', onChange)
+    return () => window.removeEventListener('hashchange', onChange)
+  }, [])
+  return route
+}
+
+// Reads ?<name>=... from window.location.search; updates on popstate.
+function useUriParam(name) {
+  const parse = () => new URLSearchParams(window.location.search).get(name)
+  const [val, setVal] = useState(parse)
+  useEffect(() => {
+    const onChange = () => setVal(parse())
+    window.addEventListener('popstate', onChange)
+    return () => window.removeEventListener('popstate', onChange)
+  }, [])
+  return val
+}
+
+// --- view: Profile --------------------------------------------------------
+
+const niceLink = (u) => (u || '').replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')
+const initial  = (s) => (s || '?').trim().split(/\s+/).pop().charAt(0).toUpperCase()
+
+// useState-driven img with fallback. Avoids DOM-swap closures that break
+// across re-renders. If src changes, error state resets.
+function Avatar({ src, name }) {
+  const [errored, setErrored] = useState(false)
+  useEffect(() => { setErrored(false) }, [src])
+  if (!src || errored) return html`<div class="photo-fallback">${initial(name)}</div>`
+  return html`<img class="photo" src=${src} alt=${name} onError=${() => setErrored(true)} />`
+}
+
+// Click-to-edit text — same primitive as stage 2 but trimmed.
+function EditableText({ value, placeholder, onChange, multiline, block }) {
+  const [editing, setEditing] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => { if (editing && ref.current) { ref.current.focus(); if (ref.current.select && !multiline) ref.current.select() } }, [editing])
+  if (editing) {
+    const commit = () => { onChange(ref.current.value); setEditing(false) }
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); setEditing(false) }
+      if (e.key === 'Enter' && !multiline) { e.preventDefault(); commit() }
+    }
+    return multiline
+      ? html`<textarea ref=${ref} class="e-area" onBlur=${commit} onKeyDown=${onKey}>${value || ''}</textarea>`
+      : html`<input ref=${ref} class="e-input" type="text" defaultValue=${value || ''} onBlur=${commit} onKeyDown=${onKey} />`
+  }
+  const isEmpty = !value
+  const cls = `e ${block ? 'e-block' : ''} ${isEmpty ? 'empty' : ''}`.trim()
+  return html`<span class=${cls} tabIndex="0" onClick=${() => setEditing(true)} onFocus=${() => setEditing(true)}>${isEmpty ? (placeholder || '\u2014') : value}</span>`
+}
+
+// --- editable WebID profile -------------------------------------------------
+// Tracks the FULL fetched doc so PUTs preserve pod-only fields (oidcIssuer,
+// storage, sameAs, etc.). Edits target the matching subject node. Field-name
+// → predicate alias list for read; canonical predicate for write.
+
+const EDIT_PREDICATES = {
+  name:     ['name', 'foaf:name', 'http://xmlns.com/foaf/0.1/name', 'vcard:fn', 'http://www.w3.org/2006/vcard/ns#fn'],
+  nick:     ['nick', 'foaf:nick', 'http://xmlns.com/foaf/0.1/nick'],
+  email:    ['email', 'foaf:mbox', 'http://xmlns.com/foaf/0.1/mbox'],
+  homepage: ['homepage', 'foaf:homepage', 'http://xmlns.com/foaf/0.1/homepage'],
+  img:      ['img', 'foaf:img', 'http://xmlns.com/foaf/0.1/img', 'foaf:depiction', 'http://xmlns.com/foaf/0.1/depiction', 'vcard:hasPhoto', 'http://www.w3.org/2006/vcard/ns#hasPhoto'],
+  bio:      ['bio', 'vcard:note', 'http://www.w3.org/2006/vcard/ns#note'],
+  pronouns: ['pronouns', 'solid:preferredSubjectPronoun', 'http://www.w3.org/ns/solid/terms#preferredSubjectPronoun'],
+  role:     ['role', 'vcard:role', 'http://www.w3.org/2006/vcard/ns#role'],
+  org:      ['org', 'organization', 'vcard:organization-name', 'http://www.w3.org/2006/vcard/ns#organization-name', 'schema:worksFor', 'http://schema.org/worksFor'],
+  // Read-only meta fields surfaced in the stat row
+  storage:    ['storage', 'pim:storage', 'http://www.w3.org/ns/pim/space#storage'],
+  inbox:      ['inbox', 'ldp:inbox', 'http://www.w3.org/ns/ldp#inbox'],
+  oidcIssuer: ['oidcIssuer', 'solid:oidcIssuer', 'http://www.w3.org/ns/solid/terms#oidcIssuer'],
+  preferencesFile: ['preferencesFile', 'pim:preferencesFile', 'space:preferencesFile', 'http://www.w3.org/ns/pim/space#preferencesFile'],
+  publicTypeIndex: ['publicTypeIndex', 'solid:publicTypeIndex', 'http://www.w3.org/ns/solid/terms#publicTypeIndex'],
+}
+// foaf:knows is read separately because it's an array of references rather
+// than a single value — the readField helper picks one item, we want all.
+const KNOWS_PREDICATES = ['knows', 'foaf:knows', 'http://xmlns.com/foaf/0.1/knows']
+const ACCOUNT_PREDICATES = ['account', 'foaf:account', 'http://xmlns.com/foaf/0.1/account']
+const CANONICAL = {
+  name: 'foaf:name', nick: 'foaf:nick', email: 'foaf:mbox',
+  homepage: 'foaf:homepage', img: 'foaf:img', bio: 'vcard:note',
+  pronouns: 'solid:preferredSubjectPronoun',
+  role: 'vcard:role', org: 'vcard:organization-name',
+}
+const URI_FIELDS = new Set(['homepage', 'img'])
+
+// Merge JSON-LD nodes that share the same @id. Community Solid Server
+// sometimes flattens predicates into separate nodes (44 nodes all with
+// @id #me, each holding a different predicate) rather than merging them
+// into one — so we must reconstitute the full subject.
+function mergeNodes(nodes) {
+  if (nodes.length === 1) return nodes[0]
+  const out = {}
+  const keyOf = (v) => typeof v === 'object' && v !== null
+    ? (v['@id'] || v['@value'] || JSON.stringify(v))
+    : v
+  for (const n of nodes) {
+    for (const k of Object.keys(n)) {
+      if (k === '@id') { out[k] = n[k]; continue }
+      const incoming = Array.isArray(n[k]) ? n[k] : [n[k]]
+      if (out[k] == null) {
+        out[k] = Array.isArray(n[k]) ? [...n[k]] : n[k]
+        continue
+      }
+      const arr = Array.isArray(out[k]) ? out[k] : [out[k]]
+      const seen = new Set(arr.map(keyOf))
+      for (const v of incoming) {
+        const key = keyOf(v)
+        if (!seen.has(key)) { arr.push(v); seen.add(key) }
+      }
+      out[k] = arr
+    }
+  }
+  return out
+}
+
+function findSubject(doc, webid) {
+  // The doc might be: (a) a single object, (b) an object with @graph, or
+  // (c) a bare array of graph nodes (Community Solid Server returns this).
+  // Normalize all three to a flat list of nodes.
+  const graph = Array.isArray(doc) ? doc
+              : Array.isArray(doc['@graph']) ? doc['@graph']
+              : [doc]
+  // 1. All nodes with @id endsWith #frag, merged
+  const frag = webid.includes('#') ? '#' + webid.split('#')[1] : null
+  if (frag) {
+    const matches = graph.filter(n => (n['@id'] || '').endsWith(frag))
+    if (matches.length) return mergeNodes(matches)
+  }
+  // 2. All nodes with full WebID match, merged
+  const exact = graph.filter(n => n['@id'] === webid)
+  if (exact.length) return mergeNodes(exact)
+  // 3. Pick the first node typed as a Person — skips PersonalProfileDocument
+  //    wrappers that come first in some pods.
+  const person = graph.find(n => {
+    const t = n['@type']
+    if (!t) return false
+    return (Array.isArray(t) ? t : [t]).some(x => /Person|Agent/i.test(x))
+  })
+  return person || graph[0]
+}
+
+function readField(subject, field) {
+  for (const p of EDIT_PREDICATES[field] || []) {
+    const v = subject[p]
+    if (v == null) continue
+    if (typeof v === 'string') return v.replace(/^mailto:/, '')
+    if (Array.isArray(v) && v.length) return typeof v[0] === 'string' ? v[0].replace(/^mailto:/,'') : (v[0]['@id'] || v[0]['@value'])
+    if (v['@id']) return v['@id']
+    if (v['@value']) return v['@value']
+  }
+  return ''
+}
+
+function writeField(subject, field, value) {
+  // Try existing predicate first
+  for (const p of EDIT_PREDICATES[field] || []) {
+    if (subject[p] != null) {
+      if (!value) { delete subject[p]; return }
+      const wrapped = field === 'email' ? (value.startsWith('mailto:') ? value : 'mailto:' + value)
+                    : (URI_FIELDS.has(field) && typeof subject[p] === 'object' && !Array.isArray(subject[p])) ? { '@id': value }
+                    : value
+      subject[p] = wrapped
+      return
+    }
+  }
+  // Add under canonical predicate
+  if (!value) return
+  const canon = CANONICAL[field]
+  if (!canon) return
+  subject[canon] = field === 'email' ? 'mailto:' + value : value
+}
+
+function useEditableProfile(webid) {
+  const [state, setState] = useState({ loading: !!webid, doc: null, error: null, status: '' })
+  const saveTimer = useRef(null)
+  useEffect(() => {
+    if (!webid) { setState({ loading: false, doc: null, error: null, status: '' }); return }
+    let cancelled = false
+    setState({ loading: true, doc: null, error: null, status: '' })
+    fetchJsonLd(webid.replace(/#.*$/, ''))
+      .then(doc => { if (!cancelled) setState({ loading: false, doc, error: null, status: '' }) })
+      .catch(err => { if (!cancelled) setState({ loading: false, doc: null, error: err.message, status: '' }) })
+    return () => { cancelled = true }
+  }, [webid])
+
+  const scheduleSave = useCallback((doc) => {
+    setState(s => ({ ...s, status: 'saving' }))
+    clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      putJsonLd(webid.replace(/#.*$/, ''), doc)
+        .then(() => setState(s => ({ ...s, status: 'saved' })))
+        .catch(err => setState(s => ({ ...s, status: 'error', error: err.message })))
+    }, 700)
+  }, [webid])
+
+  const setField = useCallback((field, value) => {
+    setState(s => {
+      if (!s.doc) return s
+      const next = JSON.parse(JSON.stringify(s.doc))
+      const subj = findSubject(next, webid)
+      writeField(subj, field, (value || '').trim())
+      scheduleSave(next)
+      return { ...s, doc: next, status: 'saving' }
+    })
+  }, [webid, scheduleSave])
+
+  // Synthesize a flat data view for the UI from the current doc.
+  // useMemo so this only recomputes when the doc actually changes —
+  // not on every render (which would do redundant graph walks for accounts
+  // and could compound with stale-closure setState loops elsewhere).
+  const data = useMemo(() => {
+    if (!state.doc) return null
+    const graph = Array.isArray(state.doc) ? state.doc
+                : Array.isArray(state.doc['@graph']) ? state.doc['@graph']
+                : [state.doc]
+    const subj = findSubject(state.doc, webid) || {}
+    const out = { '@id': subj['@id'], '@type': subj['@type'] }
+    for (const f of Object.keys(EDIT_PREDICATES)) {
+      const v = readField(subj, f)
+      if (v) out[f] = v
+    }
+    // knows: collect all references (array, not single value)
+    const knowsRaw = []
+    for (const p of KNOWS_PREDICATES) {
+      const v = subj[p]
+      if (!v) continue
+      const items = Array.isArray(v) ? v : [v]
+      for (const it of items) {
+        const id = typeof it === 'string' ? it : (it && (it['@id'] || it['@value']))
+        if (id && !knowsRaw.includes(id)) knowsRaw.push(id)
+      }
+    }
+    out.knows = knowsRaw
+
+    // accounts: foaf:account values come in two shapes:
+    //   - inline:  { '@type': 'soc:MastodonAccount', 'foaf:accountName': '@x@y' }
+    //   - reference: { '@id': '_:bnode' } pointing at a node elsewhere in the graph
+    // Handle both. For references, look up the node in the graph (with
+    // mergeNodes for the CSS flatten quirk).
+    const accounts = []
+    const seenRefIds = new Set()
+    const NAME_KEYS = ['foaf:accountName', 'http://xmlns.com/foaf/0.1/accountName']
+    const hasInline = (n) => n['@type'] || NAME_KEYS.some(k => n[k] != null)
+    for (const p of ACCOUNT_PREDICATES) {
+      const v = subj[p]
+      if (!v) continue
+      const items = Array.isArray(v) ? v : [v]
+      for (const it of items) {
+        if (!it || typeof it !== 'object') continue
+        let node = it
+        // Pure reference (only @id, nothing else useful) → look up
+        if (it['@id'] && !hasInline(it)) {
+          if (seenRefIds.has(it['@id'])) continue
+          seenRefIds.add(it['@id'])
+          const matches = graph.filter(n => n['@id'] === it['@id'])
+          if (!matches.length) continue
+          node = mergeNodes(matches)
+        }
+        const types = node['@type']
+        const typeArr = Array.isArray(types) ? types : (types ? [types] : [])
+        const platformIRI = typeArr.find(t => /Account$/i.test(t)) || typeArr[0] || ''
+        const platform = platformIRI ? (platformIRI.split(/[#/:]/).pop() || '').replace(/Account$/i, '') : ''
+        const nameVal = node['foaf:accountName'] || node['http://xmlns.com/foaf/0.1/accountName']
+        const nameStr = typeof nameVal === 'string' ? nameVal
+                      : Array.isArray(nameVal) ? (typeof nameVal[0] === 'string' ? nameVal[0] : nameVal[0]?.['@value'])
+                      : nameVal?.['@value']
+        if (platform || nameStr) accounts.push({ platform: platform || 'Account', name: nameStr || '' })
+      }
+    }
+    out.accounts = accounts
+
+    return out
+  }, [state.doc, webid])
+
+  return { ...state, data, setField }
+}
+
+function EmptyFact({ icon, text }) {
+  return html`<div class="fact" style=${{ opacity: 0.5, fontStyle: 'italic' }}><span class="ic">${icon}</span><span>${text}</span></div>`
+}
+
+function ProfileView({ identity }) {
+  const viewedUri = useUriParam('uri')
+  const isViewing = viewedUri && (!identity || viewedUri !== identity.id)
+  const webid = viewedUri || identity?.id
+  const editable = useEditableProfile(webid)
+  const data = editable.data || {}
+  const { name, address, email, phone, homepage, img, bio, pronouns, role, org, storage, inbox, oidcIssuer } = data
+  const knows = Array.isArray(data.knows) ? data.knows : []
+  const save = editable.status
+  const set  = editable.setField
+  const webidSrcUrl = webid.replace(/#.*$/, '')
+  const niceWebid = webid.replace(/^https?:\/\//, '')
+  const copyWebid = () => { try { navigator.clipboard.writeText(webid) } catch {} }
+
+  // Resolve a possibly-relative URL against the WebID, return host or null
+  const resolveHost = (v) => { if (!v) return null; try { return new URL(v, webid).host } catch { return null } }
+  const podHost     = (() => { try { return new URL(webid).host } catch { return webid } })()
+  const storageHost = resolveHost(storage)
+  const inboxAbs    = (() => { if (!inbox) return null; try { return new URL(inbox, webid).href } catch { return null } })()
+  const issuerHost  = resolveHost(oidcIssuer)
+  const isOwn       = identity?.id === webid
+
+  if (editable.loading) return html`<div style=${{ color: 'var(--muted)' }}>Loading WebID\u2026</div>`
+  if (editable.error && !editable.data) return html`<div class="err">${editable.error}</div>`
+
+  // Helper: edit-or-static — either an EditableText or a plain span depending on viewer mode
+  const F = (value, placeholder, onChange) => isViewing
+    ? html`<span class=${value ? 'e' : 'e empty'} style=${{ cursor: 'default' }}>${value || (placeholder || '\u2014')}</span>`
+    : html`<${EditableText} value=${value} placeholder=${placeholder} onChange=${onChange} />`
+  const FBio = (value, placeholder, onChange) => isViewing
+    ? (value ? html`<span>${value}</span>` : html`<span class="e empty" style=${{ cursor: 'default' }}>${placeholder || '\u2014'}</span>`)
+    : html`<${EditableText} value=${value} placeholder=${placeholder} multiline=${true} block=${true} onChange=${onChange} />`
+
+  const clearViewer = (e) => {
+    e?.preventDefault?.()
+    const url = new URL(window.location.href)
+    url.searchParams.delete('uri')
+    window.history.pushState({}, '', url.toString())
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+
+  return html`
+    <div>
+    ${isViewing && html`<div class="viewer-banner">
+      <span class="viewer-eye"><${Icon} name="eye" size=${14} /></span>
+      <span>Viewing someone else's WebID \u2014 read-only</span>
+      ${identity && html`<a class="viewer-back" href="?" onClick=${clearViewer}>\u2190 Back to my profile</a>`}
+    </div>`}
+    ${!isViewing && save && html`<div style=${{ marginBottom: '10px', fontSize: '11px', fontWeight: 600, letterSpacing: '0.06em', color: save === 'saving' ? '#f59e0b' : save === 'saved' ? '#10b981' : '#ef4444', textAlign: 'right' }}>${save === 'saving' ? '\u2026 SAVING' : save === 'saved' ? '\u2713 SAVED' : '\u26a0 ' + (editable.error || 'ERROR')}</div>`}
+    <div class="two-col">
+      <div>
+        <div class="card">
+          <div class="hero">
+            <${Avatar} src=${img} name=${name} />
+            <div class="hero-meta">
+              <h1 class="name">${F(name, 'Add name', (v) => set('name', v))}</h1>
+              ${(role || org || isOwn) && html`<div class="role-line">
+                ${role && html`<span>${role}</span>`}
+                ${role && org && html`<span class="role-sep">at</span>`}
+                ${org && html`<span class="role-org">${org}</span>`}
+                ${isOwn && (role || org) && html`<span class="role-sep">·</span>`}
+                ${isOwn && html`<span class="verified-inline"><${Icon} name="check-sq" size=${12} /> Verified you</span>`}
+              </div>`}
+              <div class="facts">
+                <div class="fact"><span class="ic"><${Icon} name="map-pin" size=${15} /></span>${F(address,  'Add address',  (v) => set('address', v))}</div>
+                <div class="fact"><span class="ic"><${Icon} name="phone"   size=${15} /></span>${F(phone,    'Add phone',    (v) => set('phone', v))}</div>
+                <div class="fact"><span class="ic"><${Icon} name="mail"    size=${15} /></span>${F(email,    'Add email',    (v) => set('email', v))}</div>
+                <div class="fact"><span class="ic"><${Icon} name="globe"   size=${15} /></span>${F(homepage, 'Add homepage', (v) => set('homepage', v))}</div>
+              </div>
+              <div class="webid-bar">
+                <span class="webid-bar-icon"><${Icon} name="globe" size=${13} /></span>
+                <code class="webid-bar-id">${niceWebid}</code>
+                <button class="webid-bar-btn" onClick=${copyWebid} title="Copy WebID">Copy</button>
+                <a class="webid-bar-btn" href=${webidSrcUrl} target="_blank" rel="noopener" title="Open WebID source"><${Icon} name="link" size=${12} /></a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="stat-row">
+          <div class="stat">
+            <div class="stat-label">Pod</div>
+            <div class="stat-value"><code>${podHost}</code></div>
+          </div>
+          ${storageHost && storageHost !== podHost && html`
+            <div class="stat">
+              <div class="stat-label">Storage</div>
+              <div class="stat-value"><code>${storageHost}</code></div>
+            </div>`}
+          ${inboxAbs && html`
+            <div class="stat">
+              <div class="stat-label">Inbox</div>
+              <div class="stat-value"><a href=${inboxAbs} target="_blank" rel="noopener"><${Icon} name="mail" size=${12} /> Open</a></div>
+            </div>`}
+          ${issuerHost && issuerHost !== podHost && html`
+            <div class="stat">
+              <div class="stat-label">Sign-in via</div>
+              <div class="stat-value"><code>${issuerHost}</code></div>
+            </div>`}
+        </div>
+        <div class="card"><h2 class="section-title">Bio</h2><p class="prose">${FBio(bio, isViewing ? 'No bio in this WebID' : 'Click to add a bio (writes to vcard:note)', (v) => set('bio', v))}</p></div>
+
+        ${knows.length > 0 && html`
+          <div class="card">
+            <h2 class="section-title">Knows · ${knows.length}</h2>
+            <div class="knows-grid">
+              ${knows.map(id => {
+                const initial = (() => {
+                  try { const u = new URL(id); const p = u.pathname.split('/').filter(Boolean); return ((p[0] || u.host).charAt(0)).toUpperCase() }
+                  catch { return '?' }
+                })()
+                const host = (() => { try { return new URL(id).host.replace(/^www\./, '') } catch { return id } })()
+                const path = (() => { try { return new URL(id).pathname + (new URL(id).hash || '') } catch { return '' } })()
+                const goTo = (e) => {
+                  e.preventDefault()
+                  const url = new URL(window.location.href)
+                  url.searchParams.set('uri', id)
+                  url.hash = '#/profile'
+                  window.history.pushState({}, '', url.toString())
+                  window.dispatchEvent(new PopStateEvent('popstate'))
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }
+                return html`
+                  <a class="knows-card" href=${'?uri=' + encodeURIComponent(id) + '#/profile'} onClick=${goTo} title=${id}>
+                    <div class="knows-avatar">${initial}</div>
+                    <div class="knows-meta">
+                      <div class="knows-host">${host}</div>
+                      <div class="knows-path">${path}</div>
+                    </div>
+                  </a>`
+              })}
+            </div>
+          </div>`}
+      </div>
+      <div>
+        ${(data.accounts?.length || 0) > 0 && html`
+          <div class="card">
+            <h2 class="section-title">Across the web</h2>
+            <div class="acct-list">
+              ${data.accounts.map(a => html`
+                <div class="acct-row">
+                  <span class=${'acct-badge acct-' + a.platform.toLowerCase()}>${(a.platform || '?').slice(0, 2).toUpperCase()}</span>
+                  <div class="acct-meta">
+                    <div class="acct-name">${a.name || a.platform}</div>
+                    <div class="acct-platform">${a.platform}</div>
+                  </div>
+                </div>`)}
+            </div>
+          </div>`}
+      </div>
+    </div>
+    </div>
+  `
+}
+
+
+// --- view: Tasks (full CRUD on wf:Tracker resources) -----------------------
+
+const TRACKER_CLASS = 'http://www.w3.org/2005/01/wf/flow#Tracker'
+
+// Tracker column + drag-drop bus + kanban CSS all live in tracker-pane.js
+// (which is also a drop-in LOSOS pane). Pilot just imports the component.
+import { TrackerColumn } from './tracker-pane.js'
+
+const HIDE_KEY = 'solid-preact.hideCompleted'
+
+function TasksView({ identity, hideCompleted, setHideCompleted }) {
+  const webid = identity?.type === 'solid' ? identity.id : null
+  const ti = useTypeIndex(webid)
+  const urls = findRegistrations(ti.data, TRACKER_CLASS).map(r => r.instance).filter(Boolean)
+  const [creatingTracker, setCreatingTracker] = useState(false)
+  const [createErr, setCreateErr] = useState(null)
+
+  const onAddTracker = async () => {
+    const name = prompt('Tracker name (e.g. "Work", "Groceries"):')
+    if (!name || !name.trim()) return
+    const typeIndexUrl = ti.data?.typeIndexUrl
+    if (!typeIndexUrl) { setCreateErr('TypeIndex not yet loaded — click Create in Settings first.'); return }
+    setCreatingTracker(true); setCreateErr(null)
+    try {
+      await createTracker({ webid, typeIndexUrl, name: name.trim() })
+      window.location.reload()
+    } catch (e) {
+      setCreateErr(e.message); setCreatingTracker(false)
+    }
+  }
+
+  const onDeleteTracker = async (instanceUrl) => {
+    const typeIndexUrl = ti.data?.typeIndexUrl
+    if (!typeIndexUrl) return
+    // Pretty label: filename stem ("home-data" → "home"), falls back to the URL.
+    const label = (() => {
+      try { return (instanceUrl.split('#')[0].split('/').pop() || instanceUrl).replace(/-data\.jsonld$/, '').replace(/\.jsonld$/, '') }
+      catch { return instanceUrl }
+    })()
+    if (!confirm(`Remove tracker "${label}" from your TypeIndex?`)) return
+    // Second prompt — purge data file? Default OK = purge, Cancel = keep file.
+    const purgeData = confirm(
+      `Also delete the data file?\n\n` +
+      `OK   = delete the file at ${instanceUrl.replace(/#.*$/, '')}\n` +
+      `Cancel = keep the file (orphan), only the registration is removed.`
+    )
+    setCreateErr(null)
+    try {
+      await deleteTracker({ typeIndexUrl, instanceUrl, purgeData })
+      window.location.reload()
+    } catch (e) {
+      setCreateErr(`Delete failed: ${e.message}`)
+    }
+  }
+
+  if (!webid) return html`
+    <div>
+      <h1 class="page-title">Tasks</h1>
+      <p class="page-sub">Sign in to discover trackers in your pod via the public TypeIndex.</p>
+    </div>`
+
+  const status = ti.loading ? 'loading TypeIndex\u2026'
+    : ti.error  ? `error: ${ti.error}`
+    : `${urls.length} tracker${urls.length===1?'':'s'} discovered`
+
+  return html`
+    <div>
+      <div style=${{ marginBottom: '14px', fontSize: '12px', color: 'var(--muted)', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span class="island-badge" style=${{ background: '#d1fae5', color: '#065f46' }}>discovery</span>
+        <span>${status}</span>
+        <button class="podsetup-btn" disabled=${creatingTracker || ti.loading} onClick=${onAddTracker} style=${{ marginLeft: 'auto' }}>
+          ${creatingTracker ? 'Creating…' : '+ New Tracker'}
+        </button>
+        <label style=${{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none', color: 'var(--text)' }}>
+          <input type="checkbox" checked=${hideCompleted} onChange=${(e) => setHideCompleted(e.target.checked)} style=${{ accentColor: '#6366f1' }} />
+          <span>Hide completed</span>
+        </label>
+      </div>
+      ${createErr && html`<div class="podsetup-err" style=${{ marginBottom: '14px' }}>${createErr}</div>`}
+      <h1 class="page-title">Tasks</h1>
+      <p class="page-sub">Discovered via your TypeIndex. All edits PUT back to your pod.</p>
+      ${urls.length === 0 && !ti.loading
+        ? html`<div class="card" style=${{ marginTop: '18px', color: 'var(--muted)' }}>No <code>wf:Tracker</code> registrations in your TypeIndex yet. Click <strong>+ New Tracker</strong> above to create one.</div>`
+        : html`<div class="columns">
+            ${urls.map(u => html`
+              <div class="tracker-wrap" key=${u}>
+                <button class="tracker-delete" title="Delete tracker"
+                        onClick=${() => onDeleteTracker(u)}
+                        aria-label="Delete tracker">×</button>
+                <${TrackerColumn} url=${u} hideCompleted=${hideCompleted} />
+              </div>`)}
+          </div>`}
+    </div>`
+}
+
+// --- view: Settings --------------------------------------------------------
+
+const THEME_KEY = 'solid-preact.theme'
+const WEBID_KEY = 'solid-preact.webid'
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme
+}
+
+// Restore on load before any render so there's no light→dark flash.
+applyTheme(localStorage.getItem(THEME_KEY) || 'light')
+
+function SettingsView({ identity, theme, setTheme }) {
+  const [webid, setWebid] = useState(() => localStorage.getItem(WEBID_KEY) || '')
+  const liveWebid = identity?.type === 'solid' ? identity.id : null
+  const ti = useTypeIndex(liveWebid)
+  const profile = useEditableProfile(liveWebid)
+  const podPrefs = profile.data?.preferencesFile
+  const podTypeIndex = profile.data?.publicTypeIndex
+  const resolveAbs = (v) => { if (!v) return null; try { return new URL(v, liveWebid).href } catch { return null } }
+  const prefsUrl = resolveAbs(podPrefs)
+  const tiUrl    = resolveAbs(podTypeIndex)
+  const [creating, setCreating] = useState({})  // { prefs?: 'busy'|'done'|'error', ti?: ... }
+  const [errors, setErrors] = useState({})       // { prefs?: msg, ti?: msg }
+
+  const PREFS_SEED = { '@context': { 'solid': 'http://www.w3.org/ns/solid/terms#' }, '@id': '#prefs', '@type': 'solid:Preferences', 'solid:publicTypeIndex': { '@id': 'publicTypeIndex.jsonld' } }
+  const TI_SEED    = { '@context': { 'solid': 'http://www.w3.org/ns/solid/terms#' }, '@id': '#typeindex', '@type': ['solid:TypeIndex', 'solid:UnlistedDocument'] }
+
+  const create = (key, opts) => async () => {
+    setCreating(s => ({ ...s, [key]: 'busy' }))
+    setErrors(s => ({ ...s, [key]: null }))
+    try {
+      const result = await createPodResource(opts)
+      if (result.ok) {
+        setCreating(s => ({ ...s, [key]: 'done' }))
+        setTimeout(() => window.location.reload(), 800)
+      } else {
+        setCreating(s => ({ ...s, [key]: 'error' }))
+        setErrors(s => ({ ...s, [key]: result.message }))
+      }
+    } catch (e) {
+      setCreating(s => ({ ...s, [key]: 'error' }))
+      setErrors(s => ({ ...s, [key]: e.message }))
+    }
+  }
+
+  const createPrefs = create('prefs', {
+    webid: liveWebid,
+    relPath: 'settings/prefs.jsonld',
+    seed: PREFS_SEED,
+    namespace: 'http://www.w3.org/ns/pim/space#',
+    predicateLocal: 'preferencesFile',
+  })
+  const createTI = create('ti', {
+    webid: liveWebid,
+    relPath: 'settings/publicTypeIndex.jsonld',
+    seed: TI_SEED,
+    namespace: 'http://www.w3.org/ns/solid/terms#',
+    predicateLocal: 'publicTypeIndex',
+  })
+
+  useEffect(() => { if (webid) localStorage.setItem(WEBID_KEY, webid); else localStorage.removeItem(WEBID_KEY) }, [webid])
+
+  const islands = Array.from(document.querySelectorAll('script[type="application/ld+json"][data-view]')).map(el => {
+    let type = '?', id = '?', count = 0
+    try { const d = JSON.parse(el.textContent); type = d['@type'] || '?'; id = d['@id'] || '?'; count = Object.keys(d).filter(k => !k.startsWith('@')).length } catch {}
+    return { view: el.dataset.view, type, id, count }
+  })
+
+  return html`
+    <div>
+      <h1 class="page-title">Settings</h1>
+      <p class="page-sub">Appearance, identity, and the data islands this SPA has loaded.</p>
+
+      ${liveWebid && html`
+      <div class="card" style=${{ marginTop: '18px' }}>
+        <h3 class="side-title">Pod setup</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Preferences file</div>
+            <div class="settings-help">Where pilot will store theme + per-app prefs (<code>space:preferencesFile</code>).</div>
+            ${errors.prefs && html`<div class="podsetup-err">${errors.prefs}</div>`}
+          </div>
+          <div style=${{ textAlign: 'right' }}>
+            ${prefsUrl
+              ? html`<div class="podsetup-found"><${Icon} name="check-sq" size=${14} /> <a href=${prefsUrl} target="_blank" rel="noopener">${prefsUrl.replace(/^https?:\/\//,'')}</a></div>`
+              : html`<button class="podsetup-btn" disabled=${creating.prefs === 'busy' || creating.prefs === 'done'} onClick=${createPrefs}>
+                  ${creating.prefs === 'busy' ? '\u2026 Creating' : creating.prefs === 'done' ? '\u2713 Created — reloading' : 'Create'}
+                </button>`}
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Public TypeIndex</div>
+            <div class="settings-help">Where apps discover where your data lives (<code>solid:publicTypeIndex</code>).</div>
+            ${errors.ti && html`<div class="podsetup-err">${errors.ti}</div>`}
+          </div>
+          <div style=${{ textAlign: 'right' }}>
+            ${tiUrl
+              ? html`<div class="podsetup-found"><${Icon} name="check-sq" size=${14} /> <a href=${tiUrl} target="_blank" rel="noopener">${tiUrl.replace(/^https?:\/\//,'')}</a></div>`
+              : html`<button class="podsetup-btn" disabled=${creating.ti === 'busy' || creating.ti === 'done'} onClick=${createTI}>
+                  ${creating.ti === 'busy' ? '\u2026 Creating' : creating.ti === 'done' ? '\u2713 Created — reloading' : 'Create'}
+                </button>`}
+          </div>
+        </div>
+      </div>`}
+
+      <div class="card" style=${{ marginTop: liveWebid ? '0' : '18px' }}>
+        <h3 class="side-title">Appearance</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Theme</div>
+            <div class="settings-help">Saved to <code>localStorage</code>. Applied before render so there's no flash.</div>
+          </div>
+          <div class="seg">
+            <button class=${theme === 'light' ? 'on' : ''} onClick=${() => setTheme('light')}><${Icon} name="sun"  size=${14} /> Light</button>
+            <button class=${theme === 'dark'  ? 'on' : ''} onClick=${() => setTheme('dark')}><${Icon} name="moon" size=${14} /> Dark</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="side-title">Identity</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Live login state</div>
+            <div class="settings-help">Via <code>window.xlogin</code>. Updates reactively on <code>xlogin</code> / <code>xlogout</code> events.</div>
+          </div>
+          <div style=${{ textAlign: 'right', fontSize: '13px', lineHeight: 1.5 }}>
+            ${identity
+              ? html`<div><strong style=${{ color: 'var(--text)' }}>${identity.type}</strong></div><div style=${{ fontFamily: 'ui-monospace, monospace', color: 'var(--muted)', wordBreak: 'break-all', maxWidth: '320px' }}>${identity.id}</div>`
+              : html`<span style=${{ color: 'var(--muted)' }}>not signed in</span>`}
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Saved WebID (fallback)</div>
+            <div class="settings-help">Used if no live login. Persisted to <code>localStorage</code>.</div>
+          </div>
+          <input class="settings-input" type="url" placeholder="https://you.example.org/profile/card#me" value=${webid} onInput=${(e) => setWebid(e.target.value)} />
+        </div>
+      </div>
+
+      ${identity?.type === 'solid' && html`
+      <div class="card">
+        <h3 class="side-title">TypeIndex registrations</h3>
+        ${ti.loading && html`<div style=${{ color: 'var(--muted)', fontSize: '13px' }}>Loading\u2026</div>`}
+        ${ti.error   && html`<div style=${{ color: '#991b1b', fontSize: '13px' }}>${ti.error}</div>`}
+        ${ti.data && html`
+          <div style=${{ fontSize: '12px', color: 'var(--muted)', marginBottom: '10px', fontFamily: 'ui-monospace, monospace', wordBreak: 'break-all' }}>${ti.data.typeIndexUrl}</div>
+          ${ti.data.registrations.length === 0
+            ? html`<div style=${{ color: 'var(--muted)', fontSize: '13px', fontStyle: 'italic' }}>No populated registrations.</div>`
+            : ti.data.registrations.map(r => html`
+                <div class="island-row">
+                  <span class="island-badge">${(r.forClass.split(/[#/]/).pop() || r.forClass)}</span>
+                  <span style=${{ wordBreak: 'break-all' }}>${r.instance || r.instanceContainer}</span>
+                </div>
+              `)}
+        `}
+      </div>`}
+
+      <div class="card">
+        <h3 class="side-title">Data islands</h3>
+        <div>
+          ${islands.map(isl => html`
+            <div class="island-row">
+              <span class="island-badge">${isl.view}</span>
+              <span><strong style=${{ color: 'var(--text)' }}>@type</strong>: ${isl.type}</span>
+              <span><strong style=${{ color: 'var(--text)' }}>@id</strong>: ${isl.id}</span>
+              <span style=${{ marginLeft: 'auto' }}>${isl.count} props</span>
+            </div>
+          `)}
+        </div>
+      </div>
+    </div>
+  `
+}
+
+// --- shell -----------------------------------------------------------------
+
+const VIEWS = {
+  profile:  { label: 'Profile',  icon: 'user',     Component: ProfileView  },
+  tasks:    { label: 'Tasks',    icon: 'check-sq', Component: TasksView    },
+  settings: { label: 'Settings', icon: 'settings', Component: SettingsView },
+}
+
+function IdentityChip({ identity }) {
+  if (!identity) return html`<div style=${{ fontSize: '12px', color: 'var(--rail-muted)', marginTop: '20px', lineHeight: 1.5 }}>Not signed in</div>`
+  const short = identity.id.length > 28 ? identity.id.slice(0, 26) + '…' : identity.id
+  return html`
+    <div style=${{ marginTop: '20px', padding: '10px 12px', borderRadius: '8px', background: 'rgba(255,255,255,0.06)', fontSize: '12px', lineHeight: 1.5 }}>
+      <div style=${{ color: '#a5b4fc', fontWeight: 600, fontSize: '11px', letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: '4px' }}>Signed in · ${identity.type}</div>
+      <div style=${{ color: 'var(--rail-text)', wordBreak: 'break-all' }}>${short}</div>
+    </div>`
+}
+
+const LAST_ROUTE_KEY = 'pilot.lastRoute'
+
+function Onboarding() {
+  return html`
+    <div class="onboard">
+      <div class="onboard-card">
+        <div class="onboard-logo"><${Icon} name="send" size=${48} stroke=${1.75} /></div>
+        <h1 class="onboard-title">pilot</h1>
+        <p class="onboard-tag">A minimalist Solid console — your profile, your tasks, your settings. All on your pod.</p>
+        <div class="onboard-list">
+          <div><strong>Profile</strong> \u2014 fetch and edit your WebID inline</div>
+          <div><strong>Tasks</strong> \u2014 trackers discovered through your TypeIndex</div>
+          <div><strong>Settings</strong> \u2014 theme + identity + introspection</div>
+        </div>
+        <div class="onboard-cta">
+          Sign in via the <strong>button bottom-right</strong> to get started.
+        </div>
+      </div>
+    </div>`
+}
+
+// --- Command palette ------------------------------------------------------
+
+function CommandPalette({ open, setOpen, commands }) {
+  const [query, setQuery] = useState('')
+  const [selected, setSelected] = useState(0)
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    if (open) {
+      setQuery(''); setSelected(0)
+      setTimeout(() => inputRef.current?.focus(), 0)
+    }
+  }, [open])
+
+  const filtered = !query
+    ? commands
+    : commands.filter(c => (c.label + ' ' + (c.cat || '')).toLowerCase().includes(query.toLowerCase()))
+
+  const grouped = {}
+  for (const c of filtered) (grouped[c.cat || 'Other'] = grouped[c.cat || 'Other'] || []).push(c)
+  const flat = Object.values(grouped).flat()
+
+  useEffect(() => { setSelected(0) }, [query])
+
+  const onKeyDown = (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSelected(s => Math.min(flat.length - 1, s + 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setSelected(s => Math.max(0, s - 1)) }
+    else if (e.key === 'Enter')   { e.preventDefault(); flat[selected]?.run(); setOpen(false) }
+    else if (e.key === 'Escape')  { e.preventDefault(); setOpen(false) }
+  }
+
+  if (!open) return null
+
+  let i = -1
+  return html`
+    <div class="cmd-backdrop" onClick=${() => setOpen(false)}>
+      <div class="cmd-modal" onClick=${e => e.stopPropagation()}>
+        <input ref=${inputRef} class="cmd-input" type="text"
+          placeholder="Type a command or search\u2026"
+          value=${query} onInput=${e => setQuery(e.target.value)} onKeyDown=${onKeyDown} />
+        <div class="cmd-list">
+          ${Object.entries(grouped).map(([cat, items]) => html`
+            <div>
+              <div class="cmd-cat">${cat}</div>
+              ${items.map(c => {
+                i++
+                const idx = i
+                return html`
+                  <div class=${'cmd-item ' + (idx === selected ? 'cmd-selected' : '')}
+                       onMouseEnter=${() => setSelected(idx)}
+                       onClick=${() => { c.run(); setOpen(false) }}>
+                    <span class="cmd-icon">${c.icon ? html`<${Icon} name=${c.icon} size=${16} />` : ''}</span>
+                    <span class="cmd-label">${c.label}</span>
+                    ${c.shortcut && html`<span class="cmd-shortcut">${c.shortcut}</span>`}
+                  </div>`
+              })}
+            </div>
+          `)}
+          ${flat.length === 0 && html`<div class="cmd-empty">No matches for \u201c${query}\u201d</div>`}
+        </div>
+        <div class="cmd-footer">
+          <span><kbd>\u2191</kbd><kbd>\u2193</kbd> navigate</span>
+          <span><kbd>\u21B5</kbd> select</span>
+          <span><kbd>esc</kbd> close</span>
+        </div>
+      </div>
+    </div>`
+}
+
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
+const META  = isMac ? '\u2318' : 'Ctrl'
+
+function App() {
+  const identity = useXlogin()
+  const viewedUri = useUriParam('uri')
+  const route = useHashRoute(localStorage.getItem(LAST_ROUTE_KEY) || 'profile')
+  const effectiveRoute = viewedUri ? 'profile' : route  // viewer mode = profile only
+  const current = VIEWS[effectiveRoute] || VIEWS.profile
+  const ViewComponent = current.Component
+
+  // Lifted state so the command palette can toggle these
+  const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'light')
+  const [hideCompleted, setHideCompleted] = useState(() => localStorage.getItem(HIDE_KEY) === '1')
+  const [paletteOpen, setPaletteOpen] = useState(false)
+
+  useEffect(() => { if (VIEWS[route]) localStorage.setItem(LAST_ROUTE_KEY, route) }, [route])
+  useEffect(() => { localStorage.setItem(THEME_KEY, theme); applyTheme(theme) }, [theme])
+  useEffect(() => { localStorage.setItem(HIDE_KEY, hideCompleted ? '1' : '0') }, [hideCompleted])
+
+  // --- prefs.jsonld sync --------------------------------------------------
+  // When signed in, mirror theme + hideCompleted with the prefs file named
+  // on the WebID via pim:preferencesFile. localStorage stays as the
+  // first-paint / offline cache; the pod is the cross-device source.
+  const prefsUrlRef = useRef(null)
+  const podPrefsRef = useRef({ theme: null, hideCompleted: null })
+
+  useEffect(() => {
+    if (!identity || identity.type !== 'solid') {
+      prefsUrlRef.current = null
+      podPrefsRef.current = { theme: null, hideCompleted: null }
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        // Resolve prefs URL straight from the raw WebID doc — normalizeProfile
+        // doesn't expose pim:preferencesFile, so read the predicate directly.
+        const webidDoc = await fetchJsonLd(identity.id.replace(/#.*$/, ''))
+        const frag     = identity.id.includes('#') ? identity.id.split('#')[1] : null
+        const graph    = Array.isArray(webidDoc['@graph']) ? webidDoc['@graph']
+                        : Array.isArray(webidDoc) ? webidDoc : [webidDoc]
+        const me       = (frag ? graph.find(n => (n['@id'] || '').endsWith('#' + frag)) : null) || graph[0]
+        const prefsRef = me?.['pim:preferencesFile']
+                       || me?.['http://www.w3.org/ns/pim/space#preferencesFile']
+                       || me?.['preferencesFile']   // bare alias (JSS-generated profiles)
+        const prefsRel = typeof prefsRef === 'string' ? prefsRef : prefsRef?.['@id']
+        if (!prefsRel) return
+        const prefsUrl = new URL(prefsRel, identity.id).href
+        const doc      = await fetchJsonLd(prefsUrl)
+        if (cancelled) return
+        prefsUrlRef.current = prefsUrl
+        const podTheme = readPilotKey(doc, 'theme')
+        const podHide  = readPilotKey(doc, 'hideCompleted')
+        podPrefsRef.current = {
+          theme: typeof podTheme === 'string' ? podTheme : null,
+          hideCompleted: typeof podHide === 'boolean' ? podHide : null,
+        }
+        if (podPrefsRef.current.theme && podPrefsRef.current.theme !== theme) setTheme(podPrefsRef.current.theme)
+        if (typeof podPrefsRef.current.hideCompleted === 'boolean' && podPrefsRef.current.hideCompleted !== hideCompleted) setHideCompleted(podPrefsRef.current.hideCompleted)
+      } catch {
+        // prefs missing or unreadable — stay with localStorage
+      }
+    })()
+    return () => { cancelled = true }
+  }, [identity?.id])
+
+  useEffect(() => {
+    if (!prefsUrlRef.current) return
+    if (podPrefsRef.current.theme === theme && podPrefsRef.current.hideCompleted === hideCompleted) return
+    const t = setTimeout(async () => {
+      try {
+        await writePilotPrefs(prefsUrlRef.current, { theme, hideCompleted })
+        podPrefsRef.current = { theme, hideCompleted }
+      } catch {
+        // swallow — user-visible retry on next change
+      }
+    }, 400)
+    return () => clearTimeout(t)
+  }, [theme, hideCompleted])
+
+  // Global shortcuts: ⌘K opens palette; ⌘1/2/3 jump to routes
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setPaletteOpen(o => !o)
+      } else if ((e.metaKey || e.ctrlKey) && ['1','2','3'].includes(e.key)) {
+        const r = ['profile','tasks','settings'][parseInt(e.key) - 1]
+        if (VIEWS[r]) { e.preventDefault(); window.location.hash = '#/' + r }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Viewer mode (?uri=…) bypasses sign-in: anyone can read any WebID.
+  // Sign-in is only required for the editable view of your own pod.
+  if ((!identity || identity.type !== 'solid') && !viewedUri) return html`<${Onboarding} />`
+
+  const commands = [
+    { id: 'go-profile',  cat: 'Go to', icon: 'user',     label: 'Profile',  shortcut: META + ' 1', run: () => { window.location.hash = '#/profile' } },
+    { id: 'go-tasks',    cat: 'Go to', icon: 'check-sq', label: 'Tasks',    shortcut: META + ' 2', run: () => { window.location.hash = '#/tasks' } },
+    { id: 'go-settings', cat: 'Go to', icon: 'settings', label: 'Settings', shortcut: META + ' 3', run: () => { window.location.hash = '#/settings' } },
+    { id: 'theme', cat: 'Appearance', icon: theme === 'dark' ? 'sun' : 'moon',
+      label: theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme',
+      run: () => setTheme(theme === 'dark' ? 'light' : 'dark') },
+    { id: 'hide-done', cat: 'Tasks', icon: 'eye',
+      label: hideCompleted ? 'Show completed tasks' : 'Hide completed tasks',
+      run: () => setHideCompleted(!hideCompleted) },
+    { id: 'webid', cat: 'Pod', icon: 'link', label: 'Open my WebID source',
+      run: () => window.open(identity.id.replace(/#.*$/, ''), '_blank', 'noopener') },
+    { id: 'view-webid', cat: 'Pod', icon: 'eye', label: 'View another WebID\u2026',
+      run: () => {
+        const u = window.prompt('WebID to view (e.g. https://timbl.solidcommunity.net/profile/card#me)')
+        if (!u) return
+        const url = new URL(window.location.href)
+        url.searchParams.set('uri', u.trim())
+        url.hash = '#/profile'
+        window.history.pushState({}, '', url.toString())
+        window.dispatchEvent(new PopStateEvent('popstate'))
+      } },
+    { id: 'reload', cat: 'Pod', icon: 'refresh', label: 'Reload page',
+      run: () => window.location.reload() },
+  ]
+
+  return html`
+    <div class="shell">
+      <aside class="rail">
+        <div class="brand"><span class="logo"><${Icon} name="send" size=${16} stroke=${2.25} /></span><span>pilot</span></div>
+        <button class="cmd-launcher" onClick=${() => setPaletteOpen(true)}>
+          <span class="cmd-launcher-icon"><${Icon} name="search" size=${14} /></span>
+          <span>Search\u2026</span>
+          <span class="cmd-launcher-kbd"><kbd>${META}</kbd><kbd>K</kbd></span>
+        </button>
+        <ul class="nav">
+          ${Object.entries(VIEWS).map(([key, v]) => html`
+            <li>
+              <a href=${'#/' + key} class=${route === key ? 'active' : ''}>
+                <span class="ic"><${Icon} name=${v.icon} size=${16} /></span><span>${v.label}</span>
+              </a>
+            </li>
+          `)}
+        </ul>
+        <${IdentityChip} identity=${identity} />
+      </aside>
+      <main>
+        <${ViewComponent} identity=${identity}
+          theme=${theme} setTheme=${setTheme}
+          hideCompleted=${hideCompleted} setHideCompleted=${setHideCompleted} />
+      </main>
+      <${CommandPalette} open=${paletteOpen} setOpen=${setPaletteOpen} commands=${commands} />
+    </div>
+  `
+}
+
+render(html`<${App} />`, document.getElementById('app'))
+</script>
+
+</body>
+</html>
