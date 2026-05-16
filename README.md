@@ -19,13 +19,13 @@ Your browser opens to `http://localhost:5444`. Click **Sign in** and use:
 
 That's it. You have a working Solid pod with a passkey-capable identity provider, a tiny built-in data browser, and a [WebID](https://www.w3.org/2005/Incubator/webid/spec) you can point any Solid app at.
 
-> jspod binds to `127.0.0.1` by default so the placeholder `me` / `me` credentials are reachable only from your local machine.
+> jspod binds to `localhost` by default so the placeholder `me` / `me` credentials are reachable only from your local machine.
 
 ## CLI options
 
 ```
   -p, --port <number>     Port to listen on (default: 5444)
-  -h, --host <address>    Host to bind to (default: 127.0.0.1)
+  -h, --host <address>    Host to bind to (default: localhost)
   -r, --root <path>       Data directory (default: ./pod-data)
       --multiuser         Enable multi-user mode (registration enabled)
       --no-auth           Open pod, no IDP, no ACL (demos / dev only)

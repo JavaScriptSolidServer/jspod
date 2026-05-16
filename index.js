@@ -37,7 +37,7 @@ function formatUrl(host, port) {
 const args = process.argv.slice(2);
 const options = {
   port: 5444,
-  host: '127.0.0.1',
+  host: 'localhost',
   root: './pod-data',
   multiuser: false,
   auth: true,
@@ -47,7 +47,7 @@ const options = {
 // Auth-ladder rung-1 credentials. See issue #6: jspod ships a deliberately
 // weak default sign-in so the new user is on a working pod within seconds,
 // with a clearly-marked path to climb (change password / add a passkey).
-// Safe because the default host is localhost-only (127.0.0.1).
+// Safe because the default host is localhost-only.
 // Username is fixed by JSS for root pods (server.js:970). Password defaults
 // to 'me' but can be overridden via JSS_SINGLE_USER_PASSWORD so the env
 // override documented in the README actually takes effect (and the banner
@@ -129,7 +129,7 @@ for (let i = 0; i < args.length; i++) {
     console.log(chalk.yellow('  jspod') + chalk.dim(' [options]\n'));
     console.log(chalk.white('Options:'));
     console.log(chalk.green('  -p, --port ') + chalk.yellow('<number>') + chalk.dim('     Port to listen on (default: 5444)'));
-    console.log(chalk.green('  -h, --host ') + chalk.yellow('<address>') + chalk.dim('    Host to bind to (default: 127.0.0.1)'));
+    console.log(chalk.green('  -h, --host ') + chalk.yellow('<address>') + chalk.dim('    Host to bind to (default: localhost)'));
     console.log(chalk.green('  -r, --root ') + chalk.yellow('<path>') + chalk.dim('       Data directory (default: ./pod-data)'));
     console.log(chalk.green('  --multiuser') + chalk.dim('            Enable multi-user mode'));
     console.log(chalk.green('  --no-auth') + chalk.dim('              Disable authentication'));
@@ -316,7 +316,7 @@ if (options.auth && !options.multiuser) {
       console.log('\n' + chalk.bold.red('⚠  Warning: ') + chalk.yellow(
         `--host ${options.host} exposes the well-known me/me credentials beyond localhost.`
       ));
-      console.log(chalk.dim('   Set JSS_SINGLE_USER_PASSWORD=... before running, or bind to 127.0.0.1.'));
+      console.log(chalk.dim('   Set JSS_SINGLE_USER_PASSWORD=... before running, or bind to localhost.'));
     }
   }
 }
