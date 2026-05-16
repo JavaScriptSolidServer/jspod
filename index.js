@@ -495,6 +495,15 @@ ready.then((ok) => {
     const acctAclDst = join(options.root, 'account.html.acl');
     if (existsSync(acctAclSrc)) copyFileSync(acctAclSrc, acctAclDst);
 
+    // docs.html + .acl — operator-facing reference. Same overwrite +
+    // public-read pattern as the rest of the jspod-owned static pages.
+    const docsSrc = join(__dirname, 'docs.html');
+    const docsDst = join(options.root, 'docs.html');
+    if (existsSync(docsSrc)) copyFileSync(docsSrc, docsDst);
+    const docsAclSrc = join(__dirname, 'docs.html.acl');
+    const docsAclDst = join(options.root, 'docs.html.acl');
+    if (existsSync(docsAclSrc)) copyFileSync(docsAclSrc, docsAclDst);
+
     const linksSrc = join(__dirname, 'links.jsonld');
     const linksDst = join(options.root, 'public', 'links.jsonld');
     if (existsSync(linksSrc) && !existsSync(linksDst)) {
