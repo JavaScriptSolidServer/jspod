@@ -71,7 +71,7 @@ try {
     await session.handleRedirectFromLogin();
     titleEl.textContent = 'Signed in';
     ledeEl.textContent = 'WebID: ' + (session.webId || '(none)') + '. Redirecting…';
-    setTimeout(() => { window.location.href = './'; }, 800);
+    setTimeout(() => { window.location.href = './account.html'; }, 800);
   } else {
     // Try to restore a prior session. solid-oidc throws "Missing
     // refresh data" on a clean first visit — that's fine, it just
@@ -86,7 +86,7 @@ try {
     if (restored) {
       titleEl.textContent = 'Already signed in';
       ledeEl.textContent = 'WebID: ' + session.webId + '. Redirecting…';
-      setTimeout(() => { window.location.href = './'; }, 400);
+      setTimeout(() => { window.location.href = './account.html'; }, 400);
     } else {
       await session.login(idp, redirectUri);
     }

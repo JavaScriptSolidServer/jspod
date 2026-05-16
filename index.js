@@ -484,6 +484,17 @@ ready.then((ok) => {
     const signinAclDst = join(options.root, 'signin.html.acl');
     if (existsSync(signinAclSrc)) copyFileSync(signinAclSrc, signinAclDst);
 
+    // account.html — post-sign-in dashboard. Same overwrite + public-
+    // read pattern as signin.html. Both pages render their useful
+    // state from a restored solid-oidc session; signed-out visitors
+    // see a "sign in" prompt rather than a blank page.
+    const acctSrc = join(__dirname, 'account.html');
+    const acctDst = join(options.root, 'account.html');
+    if (existsSync(acctSrc)) copyFileSync(acctSrc, acctDst);
+    const acctAclSrc = join(__dirname, 'account.html.acl');
+    const acctAclDst = join(options.root, 'account.html.acl');
+    if (existsSync(acctAclSrc)) copyFileSync(acctAclSrc, acctAclDst);
+
     const linksSrc = join(__dirname, 'links.jsonld');
     const linksDst = join(options.root, 'public', 'links.jsonld');
     if (existsSync(linksSrc) && !existsSync(linksDst)) {
