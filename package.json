@@ -11,6 +11,8 @@
     "index.js",
     "data-browser.js",
     "data-browser.css",
+    "data-browser-folder.js",
+    "data-browser-folder.css",
     "welcome.html",
     "signin.html",
     "signin.html.acl",
