@@ -79,7 +79,7 @@ jspod --multiuser
 ```
 Options:
   -p, --port <number>     Port to listen on (default: 5444)
-  -h, --host <address>    Host to bind to (default: 0.0.0.0)
+  -h, --host <address>    Host to bind to (default: 127.0.0.1)
   -r, --root <path>       Data directory (default: ./pod-data)
   --multiuser             Enable multi-user mode
   --no-auth               Disable authentication
@@ -91,8 +91,9 @@ Options:
 ### Environment Variables
 
 ```bash
-# Set JWT secret (recommended for production)
-export TOKEN_SECRET="your-secret-key-here"
+# JWT secret — auto-generated and persisted at <root>/.token-secret on
+# first run. Override here only for operator-managed deployments.
+export TOKEN_SECRET="$(openssl rand -base64 32)"
 
 # Set environment
 export NODE_ENV="production"
@@ -105,7 +106,7 @@ jspod
 
 **⚠️ Important**: Before deploying to production:
 
-1. **Set TOKEN_SECRET**
+1. **TOKEN_SECRET** is auto-generated on first run and persisted at `<root>/.token-secret` (mode 0600). For operator-managed deployments — secret rotation, distributed setups, secret managers — set it explicitly via env:
    ```bash
    export TOKEN_SECRET="$(openssl rand -base64 32)"
    ```
@@ -198,10 +199,12 @@ Under the hood, jspod runs JavaScriptSolidServer with these options:
 ```javascript
 {
   port: 5444,              // Memorable, low collision with common dev servers
-  host: '0.0.0.0',         // Accept connections from anywhere
+  host: '127.0.0.1',       // Localhost-only by default (rung-1 credentials)
   root: './pod-data',      // Local data directory
   multiuser: false,        // Single pod per server
-  TOKEN_SECRET: (auto)     // JWT secret (auto-generated, change for production)
+  TOKEN_SECRET: (per-pod)  // Auto-generated on first run and persisted at
+                           // <root>/.token-secret (mode 0600). Override via
+                           // the TOKEN_SECRET env var for operator control.
 }
 ```
 
@@ -216,15 +219,39 @@ npx jspod
 
 > Running over SSH, in CI, or in a non-interactive terminal? jspod skips auto-open and prints the URL instead. You can also pass `--no-open` to disable it explicitly.
 
-**Step 3**: Register with a passkey
-- Click "Register" or "Sign Up"
-- Use your device's biometric auth (fingerprint, Face ID, etc.)
-- Your WebID will be created automatically
+**Step 3**: Sign in (rung 1 of the auth ladder)
 
-**Step 4**: Start using your pod!
-- Upload files, create resources
-- Use Solid apps to connect to your pod
+The first time you start jspod, an IDP account is seeded with deliberately weak default credentials:
+
+| Field    | Value |
+| -------- | ----- |
+| Username | `me`  |
+| Password | `me`  |
+
+Click **Sign in** on the welcome page, then point a Solid app (like [Pilot](https://solid-apps.github.io/pilot/)) at `http://localhost:5444` and sign in with `me` / `me`.
+
+> **Why are the defaults so weak?** jspod ships you onto the first rung of the auth ladder in under a minute, then guides you up. Rung 1 is **only safe on localhost** — jspod binds to `127.0.0.1` by default for exactly this reason. Once you're in, change the password (rung 2) or add a passkey (rung 3) from your pod's account settings. See [issue #6](https://github.com/JavaScriptSolidServer/jspod/issues/6) for the ladder rationale.
+
+**Step 4**: Climb the ladder
+
+| Rung | Auth                  | How                                          |
+| ---- | --------------------- | -------------------------------------------- |
+| 0    | None                  | `npx jspod --no-auth` (demos / dev only)     |
+| 1    | `me` / `me`           | **Default.** Localhost-only.                 |
+| 2    | Your password         | Change it from your pod's account settings   |
+| 3    | Passkey               | Add a passkey from account settings          |
+| 4    | Hardware key / MFA    | Power-user setup                             |
+
+Override the default password without going through the UI:
+
+```bash
+JSS_SINGLE_USER_PASSWORD='your-password' npx jspod
+```
+
+**Step 5**: Start using your pod
+- Upload files, create resources from a Solid app
 - Your data stays on your server
+- Connect more apps — they all authenticate against your IDP
 
 **Troubleshooting**:
 - **Port in use?** Run `jspod --port 5445`
