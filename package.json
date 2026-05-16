@@ -10,7 +10,8 @@
   "files": [
     "index.js",
     "data-browser.js",
-    "data-browser.css"
+    "data-browser.css",
+    "welcome.html"
   ],
   "scripts": {
     "start": "node index.js"

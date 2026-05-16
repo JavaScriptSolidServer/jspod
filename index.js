@@ -9,7 +9,7 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join, delimiter } from 'path';
 import chalk from 'chalk';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, statSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, statSync, copyFileSync } from 'fs';
 import { randomBytes } from 'crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -421,9 +421,30 @@ function openInBrowser(url) {
   child.unref();
 }
 
+// Share one readiness check between the welcome-overwrite step and the
+// auto-open path so we don't poll the server twice.
+const ready = waitForReady(browserUrl);
+
+// Always overwrite pod-data/index.html with jspod's welcome page once
+// JSS has finished its pod init. This is a stopgap — there's no clean
+// hook in JSS today for a downstream wrapper to ship its own root
+// landing page. Tracked upstream in a separate issue. Doing this
+// after readiness avoids a race where JSS's init might rewrite the
+// file on top of ours.
+ready.then((ok) => {
+  if (!ok) return;
+  const src = join(__dirname, 'welcome.html');
+  const dst = join(options.root, 'index.html');
+  try {
+    if (existsSync(src)) copyFileSync(src, dst);
+  } catch {
+    // best-effort: if we can't write, the user just sees JSS's default
+  }
+});
+
 if (shouldAutoOpen()) {
-  waitForReady(browserUrl).then((ready) => {
-    if (ready) {
+  ready.then((ok) => {
+    if (ok) {
       console.log(chalk.green(`\n🌐 Opening ${browserUrl} in your browser...`));
       openInBrowser(browserUrl);
     }
