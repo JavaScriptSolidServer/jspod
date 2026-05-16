@@ -1,6 +1,4 @@
-/* jspod minimal data-browser styles. Auto-loaded by JSS as the .css
-   sibling of data-browser.js (see generateModuleDatabrowserHtml). */
-body{font:14px/1.6 system-ui,-apple-system,sans-serif;margin:2em;color:#222;background:#fafaf8}
-#mashlib pre{padding:1em;background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:auto;white-space:pre-wrap;word-break:break-all}
-a{color:#0366d6;text-decoration:none}
-a:hover{text-decoration:underline}
+/* Intentionally empty. Styles live inside data-browser.js so the
+   browser is a single file. JSS auto-fetches this sibling URL
+   (mashlib/index.js:307); shipping an empty 200 keeps the console
+   warning-free until JSS makes the .css fetch optional. */
