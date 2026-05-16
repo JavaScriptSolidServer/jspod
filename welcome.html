@@ -24,6 +24,8 @@ a:hover{text-decoration:underline}
 .dirs{list-style:none;padding:0;margin:1em 0 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.5em}
 .dirs li a{display:block;padding:.7em .9em;background:#f3eee5;border-radius:8px;color:#222}
 .dirs li a:hover{background:#ebe5d8}
+.dirs li a.locked{opacity:.55;cursor:default}
+.dirs li a.locked:hover{background:#f3eee5}
 footer{margin-top:1.5em;padding-top:1em;border-top:1px solid #eee;color:#888;font-size:.85em;text-align:center}
 </style>
 </head>
@@ -68,6 +70,21 @@ footer{margin-top:1.5em;padding-top:1em;border-top:1px solid #eee;color:#888;fon
     if(res.status===200){if(r)r.hidden=false;if(l)l.hidden=false;}
     else if(res.status===403){if(l)l.hidden=false;}
   }).catch(function(){});
+})();
+(function(){
+  // Probe each directory tile. If unauthenticated (401/403), dim it
+  // and redirect its click to the sign-in flow instead of letting the
+  // browser navigate into a blank 401 response body.
+  document.querySelectorAll('.dirs a').forEach(function(a){
+    var href=a.getAttribute('href');
+    fetch(href,{method:'HEAD',cache:'no-store'}).then(function(res){
+      if(res.status===401||res.status===403){
+        a.classList.add('locked');
+        a.title='Sign in to view '+href;
+        a.setAttribute('href','./idp');
+      }
+    }).catch(function(){});
+  });
 })();
 </script>
 </body>
