@@ -11,6 +11,7 @@ import { dirname, join, delimiter } from 'path';
 import chalk from 'chalk';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, statSync, copyFileSync } from 'fs';
 import { randomBytes } from 'crypto';
+import { createServer } from 'net';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
@@ -160,6 +161,35 @@ for (let i = 0; i < args.length; i++) {
 if (!existsSync(options.root)) {
   mkdirSync(options.root, { recursive: true });
 }
+
+// Find a free port starting at the requested one. Mirrors Vite's
+// behaviour: shift up by one and try again, up to 10 attempts. We probe
+// by binding a throwaway server on the same host the spawned JSS will
+// use, so the result reflects the actual interface we'll claim.
+async function findFreePort(startPort, host, maxTries = 10) {
+  for (let p = startPort; p < startPort + maxTries; p++) {
+    const free = await new Promise((resolve) => {
+      const srv = createServer();
+      srv.once('error', () => resolve(false));
+      srv.once('listening', () => srv.close(() => resolve(true)));
+      srv.listen(p, host);
+    });
+    if (free) return p;
+  }
+  return null;
+}
+
+const requestedPort = options.port;
+const freePort = await findFreePort(requestedPort, options.host);
+if (freePort === null) {
+  console.error(chalk.red(`✗ No free port in range ${requestedPort}-${requestedPort + 9} on ${options.host}.`));
+  console.error(chalk.dim('Pass --port <number> to pick a different starting port.'));
+  process.exit(1);
+}
+if (freePort !== requestedPort) {
+  console.log(chalk.yellow(`Port ${requestedPort} is in use, using ${freePort} instead.`));
+}
+options.port = freePort;
 
 // Resolve the JWT signing secret. Priority:
 //   1. TOKEN_SECRET env var (operator-controlled)
