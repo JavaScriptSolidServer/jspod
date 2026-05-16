@@ -9,7 +9,7 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join, delimiter } from 'path';
 import chalk from 'chalk';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, statSync, copyFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, statSync, copyFileSync, cpSync } from 'fs';
 import { randomBytes } from 'crypto';
 import { createServer } from 'net';
 
@@ -499,6 +499,16 @@ ready.then((ok) => {
     const linksDst = join(options.root, 'public', 'links.jsonld');
     if (existsSync(linksSrc) && !existsSync(linksDst)) {
       copyFileSync(linksSrc, linksDst);
+    }
+
+    // Self-host bundled Solid apps under /public/apps/. Skip-if-exists
+    // so the user can pin / upgrade individual apps manually. The
+    // public/.acl already grants public read with acl:default, so no
+    // separate ACLs are needed for these subdirectories.
+    const appsSrc = join(__dirname, 'apps');
+    const appsDst = join(options.root, 'public', 'apps');
+    if (existsSync(appsSrc) && !existsSync(appsDst)) {
+      cpSync(appsSrc, appsDst, { recursive: true });
     }
   } catch {
     // best-effort: failures are silent; user falls back to whatever
