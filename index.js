@@ -431,14 +431,26 @@ const ready = waitForReady(browserUrl);
 // landing page. Tracked upstream in a separate issue. Doing this
 // after readiness avoids a race where JSS's init might rewrite the
 // file on top of ours.
+//
+// Also seed pod-data/public/links.jsonld on first start so the /public/
+// tile lands the user on something tangible instead of an empty
+// container listing. This one is skip-if-exists (it's user content
+// — never overwrite a customized version).
 ready.then((ok) => {
   if (!ok) return;
-  const src = join(__dirname, 'welcome.html');
-  const dst = join(options.root, 'index.html');
   try {
-    if (existsSync(src)) copyFileSync(src, dst);
+    const indexSrc = join(__dirname, 'welcome.html');
+    const indexDst = join(options.root, 'index.html');
+    if (existsSync(indexSrc)) copyFileSync(indexSrc, indexDst);
+
+    const linksSrc = join(__dirname, 'links.jsonld');
+    const linksDst = join(options.root, 'public', 'links.jsonld');
+    if (existsSync(linksSrc) && !existsSync(linksDst)) {
+      copyFileSync(linksSrc, linksDst);
+    }
   } catch {
-    // best-effort: if we can't write, the user just sees JSS's default
+    // best-effort: failures are silent; user falls back to whatever
+    // JSS already wrote (or nothing for links.jsonld).
   }
 });
 
