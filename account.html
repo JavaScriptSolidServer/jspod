@@ -41,12 +41,37 @@ footer{margin-top:1.5em;padding-top:1em;border-top:1px solid #eee;color:#888;fon
 
   <h2>Explore</h2>
   <div class="actions">
-    <a class="btn btn-secondary" id="profile-link" href="#">Profile</a>
     <a class="btn btn-secondary" href="./public/">/public/</a>
+    <a class="btn btn-secondary" id="profile-link" href="#">profile</a>
     <a class="btn btn-secondary" href="./private/">/private/</a>
     <a class="btn btn-secondary" href="./inbox/">/inbox/</a>
     <a class="btn btn-secondary" href="./settings/">/settings/</a>
   </div>
+
+  <h2>Password</h2>
+  <p id="pw-hint" style="margin:.25em 0 .5em;color:#666;font-size:.9em">Climb from rung 1 (default <code>me</code>) to rung 2 (your password).</p>
+  <button class="btn btn-secondary" id="pw-toggle" type="button">Change password</button>
+  <form id="pw-form" hidden style="margin:.75em 0 0;display:grid;gap:.5em;max-width:360px">
+    <!-- Hidden username for password managers: present in the form but
+         not rendered. Standard pattern used by GitHub, Google, etc.
+         Browsers use this to associate the saved password with an
+         account name in the credential store. -->
+    <input type="text" id="pw-username" name="username" autocomplete="username" value="me" hidden>
+    <label style="display:grid;gap:.2em;font-size:.9em;color:#555">Current password
+      <input type="password" id="pw-current" autocomplete="current-password" required style="padding:.5em .8em;border:1px solid #ddd;border-radius:6px;font:inherit">
+    </label>
+    <label style="display:grid;gap:.2em;font-size:.9em;color:#555">New password
+      <input type="password" id="pw-new" autocomplete="new-password" required minlength="4" style="padding:.5em .8em;border:1px solid #ddd;border-radius:6px;font:inherit">
+    </label>
+    <label style="display:grid;gap:.2em;font-size:.9em;color:#555">Confirm new password
+      <input type="password" id="pw-confirm" autocomplete="new-password" required style="padding:.5em .8em;border:1px solid #ddd;border-radius:6px;font:inherit">
+    </label>
+    <div class="actions">
+      <button class="btn" type="submit" id="pw-submit">Update password</button>
+      <button class="btn btn-secondary" type="button" id="pw-cancel">Cancel</button>
+    </div>
+    <div id="pw-msg" style="display:none;padding:.6em .9em;border-radius:8px;font-size:.9em"></div>
+  </form>
 
   <h2>Session</h2>
   <div class="actions">
@@ -108,6 +133,72 @@ try {
         window.location.href = './';
       } catch (e) {
         fail('Sign-out failed: ' + (e.message || String(e)));
+      }
+    });
+
+    // Change-password flow. POSTs to JSS's PUT /idp/credentials with
+    // {currentPassword, newPassword}. The endpoint requires the
+    // session's DPoP-bound bearer token plus re-proof of the current
+    // password — session.authFetch handles the auth headers, the form
+    // collects the re-auth proof.
+    const pwToggle = document.getElementById('pw-toggle');
+    const pwForm = document.getElementById('pw-form');
+    const pwCancel = document.getElementById('pw-cancel');
+    const pwSubmit = document.getElementById('pw-submit');
+    const pwMsg = document.getElementById('pw-msg');
+    const pwCurrent = document.getElementById('pw-current');
+    const pwNew = document.getElementById('pw-new');
+    const pwConfirm = document.getElementById('pw-confirm');
+
+    function pwStatus(text, isError) {
+      pwMsg.textContent = text;
+      pwMsg.style.display = 'block';
+      pwMsg.style.background = isError ? '#fff0f0' : '#e8f5e9';
+      pwMsg.style.color = isError ? '#a00' : '#1b5e20';
+    }
+    function pwReset() {
+      pwForm.reset();
+      pwMsg.style.display = 'none';
+    }
+
+    pwToggle.addEventListener('click', () => {
+      pwForm.hidden = false;
+      pwToggle.hidden = true;
+      pwCurrent.focus();
+    });
+    pwCancel.addEventListener('click', () => {
+      pwForm.hidden = true;
+      pwToggle.hidden = false;
+      pwReset();
+    });
+    pwForm.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      if (pwNew.value !== pwConfirm.value) {
+        pwStatus('New password and confirmation do not match.', true);
+        return;
+      }
+      pwSubmit.disabled = true;
+      pwStatus('Updating…');
+      try {
+        const res = await session.authFetch(new URL('./idp/credentials', window.location.href).href, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currentPassword: pwCurrent.value, newPassword: pwNew.value })
+        });
+        if (!res.ok) {
+          let detail = '';
+          try {
+            const j = await res.json();
+            detail = j.error_description || j.error || '';
+          } catch {}
+          throw new Error('HTTP ' + res.status + (detail ? ' — ' + detail : ''));
+        }
+        pwStatus('Password updated. You\'re on rung 2 now.');
+        pwCurrent.value = pwNew.value = pwConfirm.value = '';
+      } catch (e) {
+        pwStatus('Change failed: ' + (e.message || String(e)), true);
+      } finally {
+        pwSubmit.disabled = false;
       }
     });
   } else {
