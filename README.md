@@ -3,7 +3,7 @@
 > Your personal [Solid](https://solidproject.org) pod, in one command.
 
 [![npm version](https://img.shields.io/npm/v/jspod.svg)](https://www.npmjs.com/package/jspod)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 
 ## Try in 60 seconds
 
@@ -86,4 +86,4 @@ If you want the full mashlib data browser instead, skip jspod and run JSS direct
 
 ## License & credits
 
-MIT. Built on [JavaScriptSolidServer](https://github.com/JavaScriptSolidServer/JavaScriptSolidServer) by Melvin Carvalho and contributors. Issues: [GitHub](https://github.com/JavaScriptSolidServer/jspod/issues).
+AGPL-3.0-only — matches [JavaScriptSolidServer](https://github.com/JavaScriptSolidServer/JavaScriptSolidServer), on which jspod is built. By Melvin Carvalho and contributors. Issues: [GitHub](https://github.com/JavaScriptSolidServer/jspod/issues).

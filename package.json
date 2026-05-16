@@ -1,6 +1,6 @@
 {
   "name": "jspod",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "JavaScript Solid Pod - Just works, batteries included",
   "type": "module",
   "main": "index.js",
@@ -10,7 +10,8 @@
   "files": [
     "index.js",
     "data-browser.js",
-    "data-browser.css"
+    "data-browser.css",
+    "welcome.html"
   ],
   "scripts": {
     "start": "node index.js"
@@ -32,7 +33,7 @@
     "solid-server"
   ],
   "author": "Melvin Carvalho",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "bugs": {
     "url": "https://github.com/JavaScriptSolidServer/jspod/issues"
   },
