@@ -49,6 +49,9 @@ footer{margin-top:1.5em;padding-top:1em;border-top:1px solid #eee;color:#888;fon
   </div>
 
   <h2>Password</h2>
+  <div id="pw-default-warning" hidden style="background:#fff0f0;border:1px solid #f4a4a4;color:#a00;padding:.7em .9em;border-radius:8px;margin:.5em 0;font-size:.95em">
+    <strong>You're using the default password.</strong> Change it below to claim your pod.
+  </div>
   <p id="pw-hint" style="margin:.25em 0 .5em;color:#666;font-size:.9em">Climb from rung 1 (default <code>me</code>) to rung 2 (your password).</p>
   <button class="btn btn-secondary" id="pw-toggle" type="button">Change password</button>
   <form id="pw-form" hidden style="margin:.75em 0 0;display:grid;gap:.5em;max-width:360px">
@@ -127,6 +130,28 @@ try {
     // Profile link strips the fragment (WebID typically ends with #me)
     document.getElementById('profile-link').href = webid.replace(/#.*/, '');
     signedInEl.hidden = false;
+
+    // Background probe: is the password still the default rung-1 'me'?
+    // We send PUT /idp/credentials with {currentPassword:'me',newPassword:'me'}
+    // — JSS returns 204 when the current password matches (no-op re-hash),
+    // 401 when it doesn't. Show the climb warning only on 204.
+    // The probe runs fire-and-forget so the rest of the dashboard renders
+    // immediately; the warning fades in once we know.
+    (async () => {
+      try {
+        const res = await session.authFetch(new URL('./idp/credentials', window.location.href).href, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currentPassword: 'me', newPassword: 'me' })
+        });
+        if (res.ok) {
+          document.getElementById('pw-default-warning').hidden = false;
+        }
+      } catch {
+        // Best-effort: rate-limited or transient. No warning shown.
+      }
+    })();
+
     document.getElementById('signout-btn').addEventListener('click', async () => {
       try {
         await session.logout();
@@ -195,6 +220,8 @@ try {
         }
         pwStatus('Password updated. You\'re on rung 2 now.');
         pwCurrent.value = pwNew.value = pwConfirm.value = '';
+        // Hide the default-password warning if it was showing.
+        document.getElementById('pw-default-warning').hidden = true;
       } catch (e) {
         pwStatus('Change failed: ' + (e.message || String(e)), true);
       } finally {

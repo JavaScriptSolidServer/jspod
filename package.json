@@ -1,6 +1,6 @@
 {
   "name": "jspod",
-  "version": "0.0.19",
+  "version": "0.0.20",
   "description": "JavaScript Solid Pod - Just works, batteries included",
   "type": "module",
   "main": "index.js",
