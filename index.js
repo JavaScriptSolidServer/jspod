@@ -42,7 +42,11 @@ const options = {
   multiuser: false,
   auth: true,
   open: true,
-  git: true
+  git: true,
+  // 'json' (default) = minimal JSON-LD pretty-print. 'folder' = friendlier
+  // container listing (table + breadcrumb) that falls back to JSON-LD when
+  // the resource isn't a container.
+  browser: 'json'
 };
 
 // Auth-ladder rung-1 credentials. See issue #6: jspod ships a deliberately
@@ -119,6 +123,14 @@ for (let i = 0; i < args.length; i++) {
     options.open = false;
   } else if (arg === '--no-git') {
     options.git = false;
+  } else if (arg === '--browser') {
+    const raw = requireValue(arg, args[++i]);
+    if (raw !== 'json' && raw !== 'folder') {
+      console.error(chalk.red(`✗ Invalid --browser value: ${raw}`));
+      console.error(chalk.dim('Must be one of: json, folder'));
+      process.exit(1);
+    }
+    options.browser = raw;
   } else if (arg === '--version' || arg === '-v') {
     console.log(`jspod v${pkg.version}`);
     process.exit(0);
@@ -138,6 +150,7 @@ for (let i = 0; i < args.length; i++) {
     console.log(chalk.green('  --no-auth') + chalk.dim('              Disable authentication'));
     console.log(chalk.green('  --no-open') + chalk.dim('              Do not open the browser automatically'));
     console.log(chalk.green('  --no-git') + chalk.dim('               Disable JSS\'s git HTTP backend (it is on by default)'));
+    console.log(chalk.green('  --browser ') + chalk.yellow('<json|folder>') + chalk.dim('  Data browser style (default: json)'));
     console.log(chalk.green('  -v, --version') + chalk.dim('           Show jspod version'));
     console.log(chalk.green('  --help') + chalk.dim('                  Show this help message\n'));
     console.log(chalk.white('Examples:'));
@@ -347,7 +360,8 @@ console.log(chalk.yellow('⏳ Initializing server components...\n'));
 // of CSS, both shipped in this npm package). Version-pinned jsdelivr
 // URL is immutable per version, so a published jspod release will
 // always load the matching browser code.
-const dataBrowserUrl = `https://cdn.jsdelivr.net/npm/jspod@${pkg.version}/data-browser.js`;
+const browserFile = options.browser === 'folder' ? 'data-browser-folder.js' : 'data-browser.js';
+const dataBrowserUrl = `https://cdn.jsdelivr.net/npm/jspod@${pkg.version}/${browserFile}`;
 
 // Build jss arguments
 const jssArgs = [
