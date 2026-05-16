@@ -32,7 +32,7 @@
     "solid-server"
   ],
   "author": "Melvin Carvalho",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "bugs": {
     "url": "https://github.com/JavaScriptSolidServer/jspod/issues"
   },
