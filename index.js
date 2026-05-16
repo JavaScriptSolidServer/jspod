@@ -41,7 +41,8 @@ const options = {
   root: './pod-data',
   multiuser: false,
   auth: true,
-  open: true
+  open: true,
+  git: true
 };
 
 // Auth-ladder rung-1 credentials. See issue #6: jspod ships a deliberately
@@ -116,6 +117,8 @@ for (let i = 0; i < args.length; i++) {
     options.auth = false;
   } else if (arg === '--no-open') {
     options.open = false;
+  } else if (arg === '--no-git') {
+    options.git = false;
   } else if (arg === '--version' || arg === '-v') {
     console.log(`jspod v${pkg.version}`);
     process.exit(0);
@@ -134,6 +137,7 @@ for (let i = 0; i < args.length; i++) {
     console.log(chalk.green('  --multiuser') + chalk.dim('            Enable multi-user mode'));
     console.log(chalk.green('  --no-auth') + chalk.dim('              Disable authentication'));
     console.log(chalk.green('  --no-open') + chalk.dim('              Do not open the browser automatically'));
+    console.log(chalk.green('  --no-git') + chalk.dim('               Disable JSS\'s git HTTP backend (it is on by default)'));
     console.log(chalk.green('  -v, --version') + chalk.dim('           Show jspod version'));
     console.log(chalk.green('  --help') + chalk.dim('                  Show this help message\n'));
     console.log(chalk.white('Examples:'));
@@ -385,6 +389,12 @@ if (!options.auth) {
   // — the pod would still be ACL-gated and unreachable.
   jssArgs.push('--public');
 }
+
+// Enable JSS's git HTTP backend by default so the pod is a real
+// git remote (clone for public-read paths, push for owner-write
+// paths, auto-init on first push since JSS 0.0.195). Users who
+// don't want this surface can pass --no-git.
+jssArgs.push(options.git ? '--git' : '--no-git');
 
 // Start JSS with enhanced PATH to find the binary
 const jss = spawn('jss', jssArgs, {
