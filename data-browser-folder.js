@@ -35,6 +35,8 @@ body{font:14px/1.55 system-ui,-apple-system,sans-serif;margin:0;color:#222;backg
 .db-pre{padding:1.5em;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);overflow:auto;white-space:pre-wrap;word-break:break-all;margin:0}
 .db-pre a{color:#0a66c2;text-decoration:none}
 .db-pre a:hover{text-decoration:underline}
+.db-pre .pod-os{color:#7a4ed8;text-decoration:none;font-size:1em;font-weight:600;margin:0 .15em 0 .3em;opacity:.65;transition:opacity .15s}
+.db-pre .pod-os:hover{opacity:1;text-decoration:none}
 </style>`);
 
 (function () {
@@ -111,7 +113,8 @@ body{font:14px/1.55 system-ui,-apple-system,sans-serif;margin:0;color:#222;backg
     if (!d) return `<div class="db-pre">No data.</div>`;
     const pretty = JSON.stringify(d, null, 2)
       .replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))
-      .replace(/https?:\/\/[^"\s]+/g, '<a href="$&">$&</a>');
+      .replace(/https?:\/\/[^"\s]+/g, m =>
+        `<a href="${m}">${m}</a><a class="pod-os" href="https://browser.pod-os.org/?uri=${encodeURIComponent(m)}" target="_blank" rel="noopener" title="View in pod-os">↗</a>`);
     return `<pre class="db-pre">${pretty}</pre>`;
   }
 
