@@ -30,9 +30,23 @@ That's it. You have a working Solid pod with a passkey-capable identity provider
       --multiuser         Enable multi-user mode (registration enabled)
       --no-auth           Open pod, no IDP, no ACL (demos / dev only)
       --no-open           Don't auto-open the browser on start
+      --no-git            Disable JSS's git HTTP backend
+      --browser <style>   Data browser: folder (default) or json
   -v, --version           Print jspod version
       --help              Show help
 ```
+
+## Install Solid apps
+
+After your pod is running, drop more Solid apps in with one command:
+
+```bash
+jspod install chrome             # install solid-apps/chrome
+jspod install vellum win98 pdf   # several at once
+jspod install                    # curated set: chrome vellum win98 pdf hub
+```
+
+Each app lands at `/public/apps/<name>/` and is reachable in the browser immediately. `jspod install --help` for options.
 
 ## The auth ladder
 

@@ -5,7 +5,7 @@
  * Just works, batteries included
  */
 
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join, delimiter } from 'path';
 import chalk from 'chalk';
@@ -35,6 +35,155 @@ function formatUrl(host, port) {
 
 // Parse CLI arguments
 const args = process.argv.slice(2);
+
+// Subcommand dispatch — must run before the flag-parsing loop below, which
+// is shaped for the "start the server" command. New subcommands branch off
+// here and exit; the start path is reached only when args[0] isn't one.
+if (args[0] === 'install') {
+  await runInstall(args.slice(1));
+  process.exit(0);
+}
+
+async function runInstall(rest) {
+  const opts = {
+    pod: 'http://localhost:5444',
+    user: 'me',
+    password: process.env.JSS_SINGLE_USER_PASSWORD || 'me',
+    apps: []
+  };
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i];
+    if (a === '--pod') opts.pod = rest[++i];
+    else if (a === '--user') opts.user = rest[++i];
+    else if (a === '--password') opts.password = rest[++i];
+    else if (a === '--help' || a === '-h') { printInstallHelp(); process.exit(0); }
+    else if (a.startsWith('--')) {
+      console.error(chalk.red(`✗ Unknown flag: ${a}`));
+      printInstallHelp();
+      process.exit(1);
+    }
+    else opts.apps.push(a);
+  }
+  if (opts.apps.length === 0) {
+    opts.apps = ['chrome', 'vellum', 'win98', 'pdf', 'hub'];
+  }
+  opts.pod = opts.pod.replace(/\/$/, '');
+
+  console.log(chalk.bold.white(`\nInstalling ${opts.apps.length} app${opts.apps.length === 1 ? '' : 's'} from `) +
+              chalk.cyan('solid-apps') + chalk.bold.white(' → ') + chalk.green(opts.pod));
+  console.log('');
+
+  // Authenticate against the local pod's IDP. Token is needed to push to
+  // /public/apps/<name>/ on a default jspod (private-write inherits from
+  // /public/.acl: public-read, owner-write).
+  let token;
+  try {
+    const r = await fetch(`${opts.pod}/idp/credentials`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ username: opts.user, password: opts.password })
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json();
+    token = j.access_token;
+    if (!token) throw new Error('no access_token in response');
+  } catch (e) {
+    console.error(chalk.red(`✗ Could not authenticate against ${opts.pod}: ${e.message}`));
+    console.error(chalk.dim('  Is jspod running?  → ') + chalk.bold('npx jspod'));
+    process.exit(1);
+  }
+
+  let okCount = 0;
+  for (const app of opts.apps) {
+    if (!/^[a-z0-9][a-z0-9_.-]*$/i.test(app)) {
+      console.error(chalk.red(`✗ ${app}: invalid app name`));
+      continue;
+    }
+    const source = `https://github.com/solid-apps/${app}`;
+    const dest = `${opts.pod}/public/apps/${app}`;
+    const tmp = join('/tmp', `jspod-install-${app}-${process.pid}`);
+
+    // Clean stale tmp from a previous failed run
+    if (existsSync(tmp)) spawnSync('rm', ['-rf', tmp], { stdio: 'ignore' });
+
+    // Full clone (no --depth: shallow pushes are rejected by JSS git-receive)
+    const clone = spawnSync('git', ['clone', '--quiet', source, tmp], {
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    if (clone.status !== 0) {
+      console.error(chalk.red(`✗ ${app}: clone failed`));
+      const err = clone.stderr?.toString?.().trim() || '';
+      if (err) console.error(chalk.dim(`  ${err.slice(0, 300)}`));
+      continue;
+    }
+
+    // Push to the pod. `updateInstead` (which extracts the working tree)
+    // only fires when the push targets the branch HEAD points at on the
+    // server. JSS 0.0.197+ auto-inits with HEAD=main; older versions
+    // honor the operator's `init.defaultBranch` (often `main`, sometimes
+    // `gh-pages` for GitHub-Pages-heavy users). Push to both — the one
+    // matching server-side HEAD extracts; the other just creates a ref.
+    // Idempotent on re-run.
+    const pushArgs = (branch) => ['-C', tmp, '-c',
+      `http.extraHeader=Authorization: Bearer ${token}`,
+      'push', dest, `HEAD:${branch}`];
+
+    const pushMain = spawnSync('git', pushArgs('main'),
+      { stdio: ['ignore', 'pipe', 'pipe'] });
+    const errMain = pushMain.stderr?.toString?.() || '';
+
+    // If the first push failed for a "won't auto-init" reason (path
+    // already has content, e.g. jspod's bundled pilot), don't keep going.
+    if (pushMain.status !== 0 && (errMain.includes('not found') || errMain.includes('404'))) {
+      console.log(chalk.yellow(`⊘ ${app}: skipped (path already in use — bundled or manually placed)`));
+      spawnSync('rm', ['-rf', tmp], { stdio: 'ignore' });
+      continue;
+    }
+
+    const pushPages = spawnSync('git', pushArgs('gh-pages'),
+      { stdio: ['ignore', 'pipe', 'pipe'] });
+
+    if (pushMain.status !== 0 && pushPages.status !== 0) {
+      console.error(chalk.red(`✗ ${app}: push failed`));
+      const err = (errMain + '\n' + (pushPages.stderr?.toString?.() || '')).trim();
+      console.error(chalk.dim(`  ${err.slice(0, 400)}`));
+      spawnSync('rm', ['-rf', tmp], { stdio: 'ignore' });
+      continue;
+    }
+
+    console.log(chalk.green(`✓ ${app}`) + chalk.dim(` → ${dest}/`));
+    okCount++;
+    spawnSync('rm', ['-rf', tmp], { stdio: 'ignore' });
+  }
+
+  console.log('');
+  console.log(chalk.bold(`${okCount}/${opts.apps.length} installed.`));
+  if (okCount > 0) {
+    console.log(chalk.dim('Open in browser: ') + chalk.cyan(`${opts.pod}/public/apps/`));
+  }
+}
+
+function printInstallHelp() {
+  console.log(chalk.cyan(`
+╔═══════════════════════════════════════════════════════════════════╗
+║                   jspod install - Help                             ║
+╚═══════════════════════════════════════════════════════════════════╝
+`));
+  console.log(chalk.white('Usage:'));
+  console.log(chalk.yellow('  jspod install') + chalk.dim(' [options] [<app>...]\n'));
+  console.log(chalk.white('Options:'));
+  console.log(chalk.green('  --pod ') + chalk.yellow('<url>') + chalk.dim('       Target pod (default: http://localhost:5444)'));
+  console.log(chalk.green('  --user ') + chalk.yellow('<name>') + chalk.dim('      Username (default: me)'));
+  console.log(chalk.green('  --password ') + chalk.yellow('<pw>') + chalk.dim('     Password (default: $JSS_SINGLE_USER_PASSWORD or "me")'));
+  console.log(chalk.green('  --help') + chalk.dim('             Show this help message\n'));
+  console.log(chalk.white('Examples:'));
+  console.log(chalk.dim('  jspod install chrome             # install solid-apps/chrome'));
+  console.log(chalk.dim('  jspod install chrome vellum pdf  # several apps'));
+  console.log(chalk.dim('  jspod install                    # curated set: chrome vellum win98 pdf hub'));
+  console.log(chalk.dim('  jspod install --pod http://192.168.0.1:5444 chrome'));
+  console.log('');
+}
+
 const options = {
   port: 5444,
   host: 'localhost',
@@ -141,7 +290,9 @@ for (let i = 0; i < args.length; i++) {
 ╚═══════════════════════════════════════════════════════════════════╝
 `));
     console.log(chalk.white('Usage:'));
-    console.log(chalk.yellow('  jspod') + chalk.dim(' [options]\n'));
+    console.log(chalk.yellow('  jspod') + chalk.dim(' [options]') + chalk.dim('              Start the pod (default)'));
+    console.log(chalk.yellow('  jspod install') + chalk.dim(' [<app>...]') + chalk.dim('     Install Solid apps from solid-apps/<name>'));
+    console.log(chalk.dim('                                 (see `jspod install --help`)\n'));
     console.log(chalk.white('Options:'));
     console.log(chalk.green('  -p, --port ') + chalk.yellow('<number>') + chalk.dim('     Port to listen on (default: 5444)'));
     console.log(chalk.green('  -h, --host ') + chalk.yellow('<address>') + chalk.dim('    Host to bind to (default: localhost)'));
