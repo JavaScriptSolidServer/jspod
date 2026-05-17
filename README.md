@@ -41,12 +41,15 @@ That's it. You have a working Solid pod with a passkey-capable identity provider
 After your pod is running, drop more Solid apps in with one command:
 
 ```bash
-jspod install chrome             # install solid-apps/chrome
-jspod install vellum win98 pdf   # several at once
-jspod install                    # curated set: chrome vellum win98 pdf hub
+jspod install chrome                              # solid-apps/chrome (default registry)
+jspod install vellum win98 pdf                    # several at once
+jspod install                                     # curated set: chrome vellum win98 pdf hub
+jspod install JavaScriptSolidServer/git           # any GitHub org/repo
+jspod install litecut/litecut.github.io=litecut   # rename the pod path
+jspod install solid-apps/chrome#v1                # pin a branch or tag
 ```
 
-Each app lands at `/public/apps/<name>/` and is reachable in the browser immediately. `jspod install --help` for options.
+Each app lands at `/public/apps/<name>/` and is reachable in the browser immediately. `jspod install --help` for the full spec.
 
 ## The auth ladder
 

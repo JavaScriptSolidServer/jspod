@@ -69,8 +69,8 @@ async function runInstall(rest) {
   }
   opts.pod = opts.pod.replace(/\/$/, '');
 
-  console.log(chalk.bold.white(`\nInstalling ${opts.apps.length} app${opts.apps.length === 1 ? '' : 's'} from `) +
-              chalk.cyan('solid-apps') + chalk.bold.white(' → ') + chalk.green(opts.pod));
+  console.log(chalk.bold.white(`\nInstalling ${opts.apps.length} app${opts.apps.length === 1 ? '' : 's'} → `) +
+              chalk.green(opts.pod));
   console.log('');
 
   // Authenticate against the local pod's IDP. Token is needed to push to
@@ -94,24 +94,29 @@ async function runInstall(rest) {
   }
 
   let okCount = 0;
-  for (const app of opts.apps) {
-    if (!/^[a-z0-9][a-z0-9_.-]*$/i.test(app)) {
-      console.error(chalk.red(`✗ ${app}: invalid app name`));
+  for (const input of opts.apps) {
+    const spec = parseAppSpec(input);
+    if (spec.error) {
+      console.error(chalk.red(`✗ ${input}: ${spec.error}`));
       continue;
     }
-    const source = `https://github.com/solid-apps/${app}`;
-    const dest = `${opts.pod}/public/apps/${app}`;
-    const tmp = join('/tmp', `jspod-install-${app}-${process.pid}`);
+    const { source, name, ref } = spec;
+    const dest = `${opts.pod}/public/apps/${name}`;
+    const tmp = join('/tmp', `jspod-install-${name}-${process.pid}`);
 
     // Clean stale tmp from a previous failed run
     if (existsSync(tmp)) spawnSync('rm', ['-rf', tmp], { stdio: 'ignore' });
 
-    // Full clone (no --depth: shallow pushes are rejected by JSS git-receive)
-    const clone = spawnSync('git', ['clone', '--quiet', source, tmp], {
+    // Full clone (no --depth: shallow pushes are rejected by JSS git-receive).
+    // --branch picks a tag or branch when pinned (e.g. `foo/bar#v2`).
+    const cloneArgs = ['clone', '--quiet'];
+    if (ref) cloneArgs.push('--branch', ref);
+    cloneArgs.push(source, tmp);
+    const clone = spawnSync('git', cloneArgs, {
       stdio: ['ignore', 'pipe', 'pipe']
     });
     if (clone.status !== 0) {
-      console.error(chalk.red(`✗ ${app}: clone failed`));
+      console.error(chalk.red(`✗ ${input}: clone failed`));
       const err = clone.stderr?.toString?.().trim() || '';
       if (err) console.error(chalk.dim(`  ${err.slice(0, 300)}`));
       continue;
@@ -135,7 +140,7 @@ async function runInstall(rest) {
     // If the first push failed for a "won't auto-init" reason (path
     // already has content, e.g. jspod's bundled pilot), don't keep going.
     if (pushMain.status !== 0 && (errMain.includes('not found') || errMain.includes('404'))) {
-      console.log(chalk.yellow(`⊘ ${app}: skipped (path already in use — bundled or manually placed)`));
+      console.log(chalk.yellow(`⊘ ${input}: skipped (path already in use — bundled or manually placed)`));
       spawnSync('rm', ['-rf', tmp], { stdio: 'ignore' });
       continue;
     }
@@ -144,14 +149,14 @@ async function runInstall(rest) {
       { stdio: ['ignore', 'pipe', 'pipe'] });
 
     if (pushMain.status !== 0 && pushPages.status !== 0) {
-      console.error(chalk.red(`✗ ${app}: push failed`));
+      console.error(chalk.red(`✗ ${input}: push failed`));
       const err = (errMain + '\n' + (pushPages.stderr?.toString?.() || '')).trim();
       console.error(chalk.dim(`  ${err.slice(0, 400)}`));
       spawnSync('rm', ['-rf', tmp], { stdio: 'ignore' });
       continue;
     }
 
-    console.log(chalk.green(`✓ ${app}`) + chalk.dim(` → ${dest}/`));
+    console.log(chalk.green(`✓ ${input}`) + chalk.dim(` → ${dest}/`));
     okCount++;
     spawnSync('rm', ['-rf', tmp], { stdio: 'ignore' });
   }
@@ -161,6 +166,55 @@ async function runInstall(rest) {
   if (okCount > 0) {
     console.log(chalk.dim('Open in browser: ') + chalk.cyan(`${opts.pod}/public/apps/`));
   }
+}
+
+// Parse the app spec string the user passed to `jspod install`. Accepts:
+//   - bare name              → github.com/solid-apps/<name>  (default registry)
+//   - "<org>/<repo>"         → github.com/<org>/<repo>
+//   - "https://..." full URL → as-is (must point at a git repo)
+// Each form may carry an optional "#<ref>" suffix to pin a tag or branch:
+//   chrome#v1.2 / solid-apps/chrome#main / https://...#v2
+// And an optional "=<name>" suffix to override the pod-path name, useful
+// when the repo's last segment isn't what you want under /public/apps/
+// (e.g. "litecut/litecut.github.io=litecut").
+function parseAppSpec(input) {
+  // Pull off the rename suffix first, then the ref suffix.
+  let base = input;
+  let renameName = null;
+  const eqIx = base.lastIndexOf('=');
+  if (eqIx > 0) {
+    renameName = base.slice(eqIx + 1);
+    base = base.slice(0, eqIx);
+  }
+  let ref = null;
+  const hashIx = base.lastIndexOf('#');
+  if (hashIx > 0) {
+    ref = base.slice(hashIx + 1) || null;
+    base = base.slice(0, hashIx);
+  }
+  let source, name;
+  if (/^https?:\/\//.test(base)) {
+    source = base.replace(/\.git$/, '').replace(/\/$/, '');
+    name = source.split('/').pop();
+  } else if (base.includes('/')) {
+    const cleaned = base.replace(/\.git$/, '').replace(/^\/+|\/+$/g, '');
+    if (cleaned.split('/').length !== 2) {
+      return { error: 'expected <org>/<repo> shorthand' };
+    }
+    source = `https://github.com/${cleaned}`;
+    name = cleaned.split('/').pop();
+  } else {
+    source = `https://github.com/solid-apps/${base}`;
+    name = base;
+  }
+  if (renameName) name = renameName;
+  if (!/^[a-z0-9][a-z0-9_.-]*$/i.test(name)) {
+    return { error: `invalid pod-path name "${name}"` };
+  }
+  if (ref && !/^[a-z0-9][a-z0-9_./-]*$/i.test(ref)) {
+    return { error: `invalid ref "${ref}"` };
+  }
+  return { source, name, ref };
 }
 
 function printInstallHelp() {
@@ -176,10 +230,16 @@ function printInstallHelp() {
   console.log(chalk.green('  --user ') + chalk.yellow('<name>') + chalk.dim('      Username (default: me)'));
   console.log(chalk.green('  --password ') + chalk.yellow('<pw>') + chalk.dim('     Password (default: $JSS_SINGLE_USER_PASSWORD or "me")'));
   console.log(chalk.green('  --help') + chalk.dim('             Show this help message\n'));
+  console.log(chalk.white('App spec:') + chalk.dim('  <name> | <org>/<repo> | https://github.com/<org>/<repo>'));
+  console.log(chalk.dim('             Optional suffixes:  #<branch-or-tag>   =<pod-path-name>'));
+  console.log('');
   console.log(chalk.white('Examples:'));
-  console.log(chalk.dim('  jspod install chrome             # install solid-apps/chrome'));
-  console.log(chalk.dim('  jspod install chrome vellum pdf  # several apps'));
-  console.log(chalk.dim('  jspod install                    # curated set: chrome vellum win98 pdf hub'));
+  console.log(chalk.dim('  jspod install chrome                            # solid-apps/chrome'));
+  console.log(chalk.dim('  jspod install chrome vellum pdf                 # several at once'));
+  console.log(chalk.dim('  jspod install                                   # curated set: chrome vellum win98 pdf hub'));
+  console.log(chalk.dim('  jspod install JavaScriptSolidServer/git         # any GitHub org/repo'));
+  console.log(chalk.dim('  jspod install litecut/litecut.github.io=litecut # rename pod path'));
+  console.log(chalk.dim('  jspod install solid-apps/chrome#v1              # pin a tag or branch'));
   console.log(chalk.dim('  jspod install --pod http://192.168.0.1:5444 chrome'));
   console.log('');
 }
