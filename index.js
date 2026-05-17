@@ -255,7 +255,13 @@ const options = {
   // 'folder' (default) = friendlier container listing (table + breadcrumb)
   // that falls back to JSON-LD when the resource isn't a container.
   // 'json' = minimal JSON-LD pretty-print (the developer view).
-  browser: 'folder'
+  browser: 'folder',
+  // Off by default — keeps jspod Solid-pure. Opt in here when you want
+  // a Nostr identity on the pod (JSS generates a Schnorr secp256k1
+  // keypair on first start, stores it at <pod>/private/privkey.jsonld,
+  // and publishes the pubkey in the WebID profile). The nosdav-server
+  // wrapper will flip this on by default.
+  provisionKeys: false
 };
 
 // Auth-ladder rung-1 credentials. See issue #6: jspod ships a deliberately
@@ -332,6 +338,10 @@ for (let i = 0; i < args.length; i++) {
     options.open = false;
   } else if (arg === '--no-git') {
     options.git = false;
+  } else if (arg === '--provision-keys') {
+    options.provisionKeys = true;
+  } else if (arg === '--no-provision-keys') {
+    options.provisionKeys = false;
   } else if (arg === '--browser') {
     const raw = requireValue(arg, args[++i]);
     if (raw !== 'json' && raw !== 'folder') {
@@ -362,6 +372,7 @@ for (let i = 0; i < args.length; i++) {
     console.log(chalk.green('  --no-open') + chalk.dim('              Do not open the browser automatically'));
     console.log(chalk.green('  --no-git') + chalk.dim('               Disable JSS\'s git HTTP backend (it is on by default)'));
     console.log(chalk.green('  --browser ') + chalk.yellow('<folder|json>') + chalk.dim('  Data browser style (default: folder)'));
+    console.log(chalk.green('  --provision-keys') + chalk.dim('       Generate a Nostr-compatible owner keypair on first start'));
     console.log(chalk.green('  -v, --version') + chalk.dim('           Show jspod version'));
     console.log(chalk.green('  --help') + chalk.dim('                  Show this help message\n'));
     console.log(chalk.white('Examples:'));
@@ -620,6 +631,13 @@ if (!options.auth) {
 // paths, auto-init on first push since JSS 0.0.195). Users who
 // don't want this surface can pass --no-git.
 jssArgs.push(options.git ? '--git' : '--no-git');
+
+// Off by default. JSS generates a Schnorr secp256k1 keypair on first
+// start, writes it to <pod>/private/privkey.jsonld (mode 0600), and
+// publishes the pubkey in the WebID profile as a Multikey
+// verificationMethod. Pairs with the existing /.well-known/did/nostr/
+// resolution endpoint so the pod becomes its own DID resolver.
+if (options.provisionKeys) jssArgs.push('--provision-keys');
 
 // Start JSS with enhanced PATH to find the binary
 const jss = spawn('jss', jssArgs, {

@@ -32,6 +32,7 @@ That's it. You have a working Solid pod with a passkey-capable identity provider
       --no-open           Don't auto-open the browser on start
       --no-git            Disable JSS's git HTTP backend
       --browser <style>   Data browser: folder (default) or json
+      --provision-keys    Generate a Nostr-compatible owner keypair on first start
   -v, --version           Print jspod version
       --help              Show help
 ```
