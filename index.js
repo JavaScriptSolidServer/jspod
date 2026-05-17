@@ -43,10 +43,10 @@ const options = {
   auth: true,
   open: true,
   git: true,
-  // 'json' (default) = minimal JSON-LD pretty-print. 'folder' = friendlier
-  // container listing (table + breadcrumb) that falls back to JSON-LD when
-  // the resource isn't a container.
-  browser: 'json'
+  // 'folder' (default) = friendlier container listing (table + breadcrumb)
+  // that falls back to JSON-LD when the resource isn't a container.
+  // 'json' = minimal JSON-LD pretty-print (the developer view).
+  browser: 'folder'
 };
 
 // Auth-ladder rung-1 credentials. See issue #6: jspod ships a deliberately
@@ -150,7 +150,7 @@ for (let i = 0; i < args.length; i++) {
     console.log(chalk.green('  --no-auth') + chalk.dim('              Disable authentication'));
     console.log(chalk.green('  --no-open') + chalk.dim('              Do not open the browser automatically'));
     console.log(chalk.green('  --no-git') + chalk.dim('               Disable JSS\'s git HTTP backend (it is on by default)'));
-    console.log(chalk.green('  --browser ') + chalk.yellow('<json|folder>') + chalk.dim('  Data browser style (default: json)'));
+    console.log(chalk.green('  --browser ') + chalk.yellow('<folder|json>') + chalk.dim('  Data browser style (default: folder)'));
     console.log(chalk.green('  -v, --version') + chalk.dim('           Show jspod version'));
     console.log(chalk.green('  --help') + chalk.dim('                  Show this help message\n'));
     console.log(chalk.white('Examples:'));
