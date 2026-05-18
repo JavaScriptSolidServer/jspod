@@ -342,6 +342,10 @@ for (let i = 0; i < args.length; i++) {
     options.provisionKeys = true;
   } else if (arg === '--no-provision-keys') {
     options.provisionKeys = false;
+  } else if (arg === '--mcp') {
+    options.mcp = true;
+  } else if (arg === '--no-mcp') {
+    options.mcp = false;
   } else if (arg === '--browser') {
     const raw = requireValue(arg, args[++i]);
     if (raw !== 'json' && raw !== 'folder') {
@@ -373,6 +377,7 @@ for (let i = 0; i < args.length; i++) {
     console.log(chalk.green('  --no-git') + chalk.dim('               Disable JSS\'s git HTTP backend (it is on by default)'));
     console.log(chalk.green('  --browser ') + chalk.yellow('<folder|json>') + chalk.dim('  Data browser style (default: folder)'));
     console.log(chalk.green('  --provision-keys') + chalk.dim('       Generate a Nostr-compatible owner keypair on first start'));
+    console.log(chalk.green('  --mcp') + chalk.dim('                  Expose /mcp (Model Context Protocol) tool surface for agents'));
     console.log(chalk.green('  -v, --version') + chalk.dim('           Show jspod version'));
     console.log(chalk.green('  --help') + chalk.dim('                  Show this help message\n'));
     console.log(chalk.white('Examples:'));
@@ -638,6 +643,7 @@ jssArgs.push(options.git ? '--git' : '--no-git');
 // verificationMethod. Pairs with the existing /.well-known/did/nostr/
 // resolution endpoint so the pod becomes its own DID resolver.
 if (options.provisionKeys) jssArgs.push('--provision-keys');
+if (options.mcp) jssArgs.push('--mcp');
 
 // Start JSS with enhanced PATH to find the binary
 const jss = spawn('jss', jssArgs, {
