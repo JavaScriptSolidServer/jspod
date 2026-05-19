@@ -33,6 +33,7 @@ That's it. You have a working Solid pod with a passkey-capable identity provider
       --no-git            Disable JSS's git HTTP backend
       --browser <style>   Data browser: folder (default) or json
       --provision-keys    Generate a Nostr-compatible owner keypair on first start
+      --mcp               Enable MCP server at /mcp (agent tool surface; pairs with charlie)
   -v, --version           Print jspod version
       --help              Show help
 ```
@@ -48,9 +49,43 @@ jspod install                                     # curated set: chrome vellum w
 jspod install JavaScriptSolidServer/git           # any GitHub org/repo
 jspod install litecut/litecut.github.io=litecut   # rename the pod path
 jspod install solid-apps/chrome#v1                # pin a branch or tag
+jspod install --bundle starter                    # curated starter set
+jspod install --bundle agentic                    # agent stack (charlie + chat + ...)
+jspod install --bundle all                        # every solid-app
 ```
 
 Each app lands at `/public/apps/<name>/` and is reachable in the browser immediately. `jspod install --help` for the full spec.
+
+### Available bundles
+
+Curated sets, all maintained at [`solid-apps/bundles`](https://github.com/solid-apps/bundles):
+
+| Bundle | Apps | Use |
+|---|---|---|
+| `starter` | chrome, vellum, pdf, alarm, chat | Minimal pleasant first-run |
+| `all` | every solid-app | Everything in the org |
+| `media` | playlist, pdf | Media stack |
+| `productivity` | vellum, hub, win98, chat, mindstr, transcribe | Docs + workspace + retro shell + chat + mind mapping + speech-to-text |
+| `agentic` | charlie, chat, taskify, vellum, forum, chrome | Run agents on your pod — pairs with `--mcp` |
+
+You can also point at your own bundle URL:
+
+```bash
+jspod install --bundle https://my.pod/bundles/dev-stack.jsonld
+```
+
+## Run agents
+
+When `--mcp` is enabled, your pod exposes 16 tools at `/mcp` (CRUD, ACL, skills, docs, federation) that any MCP-compatible client — Claude Desktop, Cursor, custom bots — can drive. The natural way to use it from a browser is the bundled chat bot:
+
+```bash
+npx jspod --mcp                  # pod with MCP server enabled
+jspod install --bundle agentic   # charlie, chat, taskify, vellum, forum, chrome
+```
+
+Then open `http://localhost:5444/public/apps/charlie/`, log in via the xlogin button, paste an LLM API key in settings. Charlie reads its persona from `<pod>/SKILL.md`, uses the pod's `/mcp` as its tool surface, and chats with you. Edit `SKILL.md` and the bot's behaviour shifts next session — no retraining, no vendor.
+
+The whole stack — identity, memory, tools, brain — runs on your pod.
 
 ## The auth ladder
 
