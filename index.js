@@ -9,7 +9,7 @@ import { spawn, spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join, delimiter } from 'path';
 import chalk from 'chalk';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, statSync, copyFileSync, cpSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, statSync, copyFileSync, cpSync, promises as fsPromises } from 'fs';
 import { randomBytes } from 'crypto';
 import { createServer } from 'net';
 
@@ -49,13 +49,15 @@ async function runInstall(rest) {
     pod: 'http://localhost:5444',
     user: 'me',
     password: process.env.JSS_SINGLE_USER_PASSWORD || 'me',
-    apps: []
+    apps: [],
+    bundles: []
   };
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
     if (a === '--pod') opts.pod = rest[++i];
     else if (a === '--user') opts.user = rest[++i];
     else if (a === '--password') opts.password = rest[++i];
+    else if (a === '--bundle') opts.bundles.push(rest[++i]);
     else if (a === '--help' || a === '-h') { printInstallHelp(); process.exit(0); }
     else if (a.startsWith('--')) {
       console.error(chalk.red(`✗ Unknown flag: ${a}`));
@@ -64,6 +66,20 @@ async function runInstall(rest) {
     }
     else opts.apps.push(a);
   }
+
+  // Expand any --bundle sources into the apps[] list.
+  for (const source of opts.bundles) {
+    let bundleSpecs;
+    try {
+      bundleSpecs = await loadBundle(source);
+    } catch (e) {
+      console.error(chalk.red(`✗ Couldn't load bundle "${source}": ${e.message}`));
+      process.exit(1);
+    }
+    console.log(chalk.dim(`bundle "${source}" → ${bundleSpecs.length} apps: ${bundleSpecs.join(', ')}`));
+    opts.apps.push(...bundleSpecs);
+  }
+
   if (opts.apps.length === 0) {
     opts.apps = ['chrome', 'vellum', 'win98', 'pdf', 'hub'];
   }
@@ -168,6 +184,59 @@ async function runInstall(rest) {
   }
 }
 
+// Resolve a --bundle <source> argument to a fetchable URL or local file path.
+// Mirrors the JSS resolver:
+//   <name>           → https://raw.githubusercontent.com/solid-apps/bundles/HEAD/<name>.jsonld
+//   <org>/<repo>     → https://raw.githubusercontent.com/<org>/<repo>/HEAD/bundle.jsonld
+//   https://...      → fetch as-is
+//   ./path or /abs   → read from filesystem
+function resolveBundleSource(source) {
+  if (!source) throw new Error('bundle source required');
+  if (/^https?:\/\//.test(source)) return { kind: 'url', loc: source };
+  if (source.startsWith('./') || source.startsWith('/') || source.endsWith('.jsonld')) {
+    // Local filesystem path
+    if (source.startsWith('./') || source.startsWith('/')) {
+      return { kind: 'file', loc: source };
+    }
+  }
+  if (source.includes('/')) {
+    // org/repo form
+    const cleaned = source.replace(/^\/+|\/+$/g, '');
+    if (cleaned.split('/').length !== 2) {
+      throw new Error('expected <name>, <org>/<repo>, URL, or filesystem path');
+    }
+    return { kind: 'url', loc: `https://raw.githubusercontent.com/${cleaned}/HEAD/bundle.jsonld` };
+  }
+  // Bare name → solid-apps/bundles
+  if (!/^[a-z0-9][a-z0-9_.-]*$/i.test(source)) {
+    throw new Error(`invalid bundle name "${source}"`);
+  }
+  return { kind: 'url', loc: `https://raw.githubusercontent.com/solid-apps/bundles/HEAD/${source}.jsonld` };
+}
+
+// Fetch a bundle and return the list of app specs (strings).
+async function loadBundle(source) {
+  const { kind, loc } = resolveBundleSource(source);
+  let text;
+  if (kind === 'file') {
+    text = await fsPromises.readFile(loc, 'utf8');
+  } else {
+    const r = await fetch(loc);
+    if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${loc}`);
+    text = await r.text();
+  }
+  let doc;
+  try { doc = JSON.parse(text); }
+  catch (e) { throw new Error(`bundle is not valid JSON: ${e.message}`); }
+  const items = doc['schema:itemListElement'] || doc.itemListElement || [];
+  if (!Array.isArray(items)) throw new Error('bundle has no schema:itemListElement array');
+  return items.map(item => {
+    if (typeof item === 'string') return item;
+    if (item && typeof item === 'object') return item['app:spec'] || item.spec || null;
+    return null;
+  }).filter(Boolean);
+}
+
 // Parse the app spec string the user passed to `jspod install`. Accepts:
 //   - bare name              → github.com/solid-apps/<name>  (default registry)
 //   - "<org>/<repo>"         → github.com/<org>/<repo>
@@ -229,6 +298,8 @@ function printInstallHelp() {
   console.log(chalk.green('  --pod ') + chalk.yellow('<url>') + chalk.dim('       Target pod (default: http://localhost:5444)'));
   console.log(chalk.green('  --user ') + chalk.yellow('<name>') + chalk.dim('      Username (default: me)'));
   console.log(chalk.green('  --password ') + chalk.yellow('<pw>') + chalk.dim('     Password (default: $JSS_SINGLE_USER_PASSWORD or "me")'));
+  console.log(chalk.green('  --bundle ') + chalk.yellow('<src>') + chalk.dim('    Install every app in a bundle. Source: <name> (e.g. starter,'));
+  console.log(chalk.dim('                       agentic, all), <org>/<repo>, https://… URL, or ./local.jsonld'));
   console.log(chalk.green('  --help') + chalk.dim('             Show this help message\n'));
   console.log(chalk.white('App spec:') + chalk.dim('  <name> | <org>/<repo> | https://github.com/<org>/<repo>'));
   console.log(chalk.dim('             Optional suffixes:  #<branch-or-tag>   =<pod-path-name>'));
@@ -240,6 +311,9 @@ function printInstallHelp() {
   console.log(chalk.dim('  jspod install JavaScriptSolidServer/git         # any GitHub org/repo'));
   console.log(chalk.dim('  jspod install litecut/litecut.github.io=litecut # rename pod path'));
   console.log(chalk.dim('  jspod install solid-apps/chrome#v1              # pin a tag or branch'));
+  console.log(chalk.dim('  jspod install --bundle starter                  # curated starter set'));
+  console.log(chalk.dim('  jspod install --bundle agentic                  # agent stack'));
+  console.log(chalk.dim('  jspod install --bundle all                      # every solid-app'));
   console.log(chalk.dim('  jspod install --pod http://192.168.0.1:5444 chrome'));
   console.log('');
 }
