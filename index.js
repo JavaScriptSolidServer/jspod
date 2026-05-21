@@ -12,6 +12,7 @@ import chalk from 'chalk';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, statSync, copyFileSync, cpSync, promises as fsPromises } from 'fs';
 import { randomBytes } from 'crypto';
 import { createServer } from 'net';
+import { tmpdir } from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
@@ -118,7 +119,9 @@ async function runInstall(rest) {
     }
     const { source, name, ref } = spec;
     const dest = `${opts.pod}/public/apps/${name}`;
-    const tmp = join('/tmp', `jspod-install-${name}-${process.pid}`);
+    // Respect the platform's tmp dir — `/tmp` is hardcoded out on
+    // Termux (Android), where the writable tmp is at $PREFIX/tmp.
+    const tmp = join(tmpdir(), `jspod-install-${name}-${process.pid}`);
 
     // Clean stale tmp from a previous failed run
     if (existsSync(tmp)) spawnSync('rm', ['-rf', tmp], { stdio: 'ignore' });
