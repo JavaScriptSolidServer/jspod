@@ -68,6 +68,14 @@ async function runInstall(rest) {
     else opts.apps.push(a);
   }
 
+  // Bare `jspod install` (no apps, no bundles) → install the `default`
+  // bundle. The bundle definition lives at solid-apps/bundles, so updates
+  // ship without a jspod release. Power users skip this by naming apps
+  // or passing --bundle explicitly.
+  if (opts.apps.length === 0 && opts.bundles.length === 0) {
+    opts.bundles.push('default');
+  }
+
   // Expand any --bundle sources into the apps[] list.
   for (const source of opts.bundles) {
     let bundleSpecs;
@@ -79,10 +87,6 @@ async function runInstall(rest) {
     }
     console.log(chalk.dim(`bundle "${source}" → ${bundleSpecs.length} apps: ${bundleSpecs.join(', ')}`));
     opts.apps.push(...bundleSpecs);
-  }
-
-  if (opts.apps.length === 0) {
-    opts.apps = ['chrome', 'vellum', 'win98', 'pdf', 'hub'];
   }
   opts.pod = opts.pod.replace(/\/$/, '');
 
@@ -310,7 +314,7 @@ function printInstallHelp() {
   console.log(chalk.white('Examples:'));
   console.log(chalk.dim('  jspod install chrome                            # solid-apps/chrome'));
   console.log(chalk.dim('  jspod install chrome vellum pdf                 # several at once'));
-  console.log(chalk.dim('  jspod install                                   # curated set: chrome vellum win98 pdf hub'));
+  console.log(chalk.dim('  jspod install                                   # default bundle (home, plaza, vellum, plume, …)'));
   console.log(chalk.dim('  jspod install JavaScriptSolidServer/git         # any GitHub org/repo'));
   console.log(chalk.dim('  jspod install litecut/litecut.github.io=litecut # rename pod path'));
   console.log(chalk.dim('  jspod install solid-apps/chrome#v1              # pin a tag or branch'));
@@ -338,7 +342,11 @@ const options = {
   // keypair on first start, stores it at <pod>/private/privkey.jsonld,
   // and publishes the pubkey in the WebID profile). The nosdav-server
   // wrapper will flip this on by default.
-  provisionKeys: false
+  provisionKeys: false,
+  // Auto-install the `default` bundle on the first run (when
+  // /public/apps/ has nothing in it beyond the bundled pilot).
+  // --no-bootstrap opts out. See #54.
+  bootstrap: true
 };
 
 // Auth-ladder rung-1 credentials. See issue #6: jspod ships a deliberately
@@ -423,6 +431,8 @@ for (let i = 0; i < args.length; i++) {
     options.mcp = true;
   } else if (arg === '--no-mcp') {
     options.mcp = false;
+  } else if (arg === '--no-bootstrap') {
+    options.bootstrap = false;
   } else if (arg === '--browser') {
     const raw = requireValue(arg, args[++i]);
     if (raw !== 'json' && raw !== 'folder') {
@@ -455,6 +465,7 @@ for (let i = 0; i < args.length; i++) {
     console.log(chalk.green('  --browser ') + chalk.yellow('<folder|json>') + chalk.dim('  Data browser style (default: folder)'));
     console.log(chalk.green('  --provision-keys') + chalk.dim('       Generate a Nostr-compatible owner keypair on first start'));
     console.log(chalk.green('  --mcp') + chalk.dim('                  Expose /mcp (Model Context Protocol) tool surface for agents'));
+    console.log(chalk.green('  --no-bootstrap') + chalk.dim('         Skip auto-install of the `default` app bundle on first run'));
     console.log(chalk.green('  -v, --version') + chalk.dim('           Show jspod version'));
     console.log(chalk.green('  --help') + chalk.dim('                  Show this help message\n'));
     console.log(chalk.white('Examples:'));
@@ -852,8 +863,44 @@ ready.then((ok) => {
     // separate ACLs are needed for these subdirectories.
     const appsSrc = join(__dirname, 'apps');
     const appsDst = join(options.root, 'public', 'apps');
-    if (existsSync(appsSrc) && !existsSync(appsDst)) {
+    // Capture whether the apps dir already existed *before* we copy
+    // pilot in. If it didn't, this is a genuine first run and we
+    // bootstrap the `default` bundle below.
+    const appsDirExisted = existsSync(appsDst);
+    if (existsSync(appsSrc) && !appsDirExisted) {
       cpSync(appsSrc, appsDst, { recursive: true });
+    }
+
+    // First-run bootstrap (#54): on a fresh pod, install the `default`
+    // bundle so the welcome page is populated rather than near-empty.
+    // Opt out with --no-bootstrap. Skipped on no-auth pods (the install
+    // path needs the IDP to mint a bearer token).
+    //
+    // Spawn as a child process rather than calling runInstall() directly:
+    // runInstall has several process.exit() calls that would kill the
+    // running pod on any sub-error. The child runs concurrently with the
+    // pod and bubbles its own status without affecting the parent.
+    if (!appsDirExisted && options.bootstrap && options.auth) {
+      console.log(chalk.bold.white(`\n📦 First run — installing the `) +
+                  chalk.yellow('default') +
+                  chalk.bold.white(` bundle (skip next time with `) +
+                  chalk.cyan('--no-bootstrap') +
+                  chalk.bold.white(')...\n'));
+      const podUrl = browserUrl.replace(/\/$/, '');
+      const child = spawn(
+        process.execPath,
+        [process.argv[1], 'install', '--pod', podUrl, '--bundle', 'default'],
+        { stdio: 'inherit' }
+      );
+      child.on('exit', (code) => {
+        if (code !== 0) {
+          console.error(chalk.red(`\n✗ Bootstrap exited with code ${code}.`));
+          console.error(chalk.dim('  Install apps manually with `jspod install`.'));
+        }
+      });
+      child.on('error', (e) => {
+        console.error(chalk.red(`\n✗ Bootstrap failed to start: ${e.message}`));
+      });
     }
   } catch {
     // best-effort: failures are silent; user falls back to whatever
