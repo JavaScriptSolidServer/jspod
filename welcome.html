@@ -20,6 +20,8 @@ a:hover{text-decoration:underline}
 .btn-primary:hover{background:#084e96}
 .btn-secondary{background:#fff;color:#222;border-color:#ddd}
 .btn-secondary:hover{background:#f0efeb}
+.btn-home{background:#7c4dff;color:#fff;font-weight:500}
+.btn-home:hover{background:#5a2be0;color:#fff}
 [hidden]{display:none!important}
 .signed-in-note{background:#e8f5e9;color:#1b5e20;padding:.6em 1em;border-radius:8px;margin:1em 0;font-size:.95em}
 .dirs{list-style:none;padding:0;margin:1em 0 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.5em}
@@ -36,6 +38,7 @@ footer{margin-top:1.5em;padding-top:1em;border-top:1px solid #eee;color:#888;fon
 <p class="lede">Running at <a id="server-url" href="./">this server</a>.</p>
 
 <div class="actions">
+<a href="./public/apps/home/" class="btn btn-home" id="open-home-btn" hidden>🏠 Open home</a>
 <a href="./signin.html" class="btn btn-primary" data-cond="login" hidden>Sign in</a>
 <a href="./account.html" class="btn btn-secondary">Account</a>
 <a href="./idp/register" class="btn btn-secondary" data-cond="register" hidden>Sign up</a>
@@ -61,6 +64,7 @@ footer{margin-top:1.5em;padding-top:1em;border-top:1px solid #eee;color:#888;fon
 
 <h2 style="margin:1.5em 0 .25em;font-weight:500;font-size:1.05em;color:#444">Apps</h2>
 <ul class="dirs">
+<li id="apps-home" hidden><a href="./public/apps/home/">🏠 Home — your apps launcher</a></li>
 <li><a href="./public/apps/pilot/">✈️ Pilot — Solid data browser</a></li>
 </ul>
 
@@ -82,6 +86,17 @@ const exploreHint = document.getElementById('explore-hint');
 const signedInNote = document.getElementById('signed-in-note');
 const signinBtn = document.querySelector('[data-cond="login"]');
 const signupBtn = document.querySelector('[data-cond="register"]');
+
+// If `home` is installed on this pod, surface it: show the dedicated
+// CTA at the top and the launcher entry under Apps. Plain fetch is
+// fine since /public/apps/home/ is public-read by default.
+fetch('./public/apps/home/', { method: 'HEAD', cache: 'no-store' }).then((res) => {
+  if (!res.ok) return;
+  const tile = document.getElementById('apps-home');
+  const btn = document.getElementById('open-home-btn');
+  if (tile) tile.hidden = false;
+  if (btn) btn.hidden = false;
+}).catch(() => {});
 
 // Try to restore a prior session. The same "Missing refresh data"
 // catch as on the other pages: a clean first visit throws, we
