@@ -40,12 +40,14 @@ That's it. You have a working Solid pod with a passkey-capable identity provider
 
 ## Install Solid apps
 
-After your pod is running, drop more Solid apps in with one command:
+On the **first run**, jspod auto-installs the [`default`](https://github.com/solid-apps/bundles/blob/gh-pages/default.jsonld) bundle (home, plaza, vellum, plume, chat, timeline, charlie, chrome, explorer). Opt out with `--no-bootstrap`. On subsequent runs jspod just starts the pod — the bootstrap only triggers when `/public/apps/` was empty before this start.
+
+Drop more apps in any time with one command:
 
 ```bash
 jspod install chrome                              # solid-apps/chrome (default registry)
 jspod install vellum win98 pdf                    # several at once
-jspod install                                     # curated set: chrome vellum win98 pdf hub
+jspod install                                     # default bundle (home, plaza, vellum, plume, …)
 jspod install JavaScriptSolidServer/git           # any GitHub org/repo
 jspod install litecut/litecut.github.io=litecut   # rename the pod path
 jspod install solid-apps/chrome#v1                # pin a branch or tag
