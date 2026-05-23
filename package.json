@@ -3,12 +3,16 @@
   "version": "0.0.42",
   "description": "JavaScript Solid Pod - Just works, batteries included",
   "type": "module",
-  "main": "index.js",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "bin": {
     "jspod": "index.js"
   },
   "files": [
     "index.js",
+    "lib/",
     "data-browser.js",
     "data-browser.css",
     "data-browser-folder.js",

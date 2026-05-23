@@ -1,38 +1,22 @@
 #!/usr/bin/env node
 
 /**
- * jspod - JavaScript Solid Pod
- * Just works, batteries included
+ * jspod CLI — argv-parser + banner + signal-handling shell around the
+ * programmatic `start()` API in ./lib/start.js. Pod-startup logic lives
+ * there; this file owns presentation and the process-lifecycle bits a
+ * library shouldn't touch.
  */
 
 import { spawn, spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
-import { dirname, join, delimiter } from 'path';
+import { dirname, join } from 'path';
 import chalk from 'chalk';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, statSync, copyFileSync, cpSync, promises as fsPromises } from 'fs';
-import { randomBytes } from 'crypto';
-import { createServer } from 'net';
+import { existsSync, readFileSync, promises as fsPromises } from 'fs';
 import { tmpdir } from 'os';
+import { start, formatUrl } from './lib/start.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
-
-// Build a browser-friendly URL from a host/port pair. Normalizes wildcard
-// addresses (0.0.0.0, ::) to localhost and brackets IPv6 literals so the
-// result is always a valid URL the user (and the browser) can open.
-// IPv6 zone identifiers (e.g. `fe80::1%lo0`) are rejected at CLI parse
-// time — the WHATWG URL spec doesn't support them, so any URL we built
-// with one would be unparseable by Node and by the browser regardless
-// of `%` encoding.
-function formatUrl(host, port) {
-  if (host === '0.0.0.0' || host === '::' || host === '*') {
-    return `http://localhost:${port}`;
-  }
-  if (host.includes(':')) {
-    return `http://[${host}]:${port}`;
-  }
-  return `http://${host}:${port}`;
-}
 
 // Parse CLI arguments
 const args = process.argv.slice(2);
@@ -192,36 +176,27 @@ async function runInstall(rest) {
 }
 
 // Resolve a --bundle <source> argument to a fetchable URL or local file path.
-// Mirrors the JSS resolver:
-//   <name>           → https://raw.githubusercontent.com/solid-apps/bundles/HEAD/<name>.jsonld
-//   <org>/<repo>     → https://raw.githubusercontent.com/<org>/<repo>/HEAD/bundle.jsonld
-//   https://...      → fetch as-is
-//   ./path or /abs   → read from filesystem
 function resolveBundleSource(source) {
   if (!source) throw new Error('bundle source required');
   if (/^https?:\/\//.test(source)) return { kind: 'url', loc: source };
   if (source.startsWith('./') || source.startsWith('/') || source.endsWith('.jsonld')) {
-    // Local filesystem path
     if (source.startsWith('./') || source.startsWith('/')) {
       return { kind: 'file', loc: source };
     }
   }
   if (source.includes('/')) {
-    // org/repo form
     const cleaned = source.replace(/^\/+|\/+$/g, '');
     if (cleaned.split('/').length !== 2) {
       throw new Error('expected <name>, <org>/<repo>, URL, or filesystem path');
     }
     return { kind: 'url', loc: `https://raw.githubusercontent.com/${cleaned}/HEAD/bundle.jsonld` };
   }
-  // Bare name → solid-apps/bundles
   if (!/^[a-z0-9][a-z0-9_.-]*$/i.test(source)) {
     throw new Error(`invalid bundle name "${source}"`);
   }
   return { kind: 'url', loc: `https://raw.githubusercontent.com/solid-apps/bundles/HEAD/${source}.jsonld` };
 }
 
-// Fetch a bundle and return the list of app specs (strings).
 async function loadBundle(source) {
   const { kind, loc } = resolveBundleSource(source);
   let text;
@@ -244,17 +219,7 @@ async function loadBundle(source) {
   }).filter(Boolean);
 }
 
-// Parse the app spec string the user passed to `jspod install`. Accepts:
-//   - bare name              → github.com/solid-apps/<name>  (default registry)
-//   - "<org>/<repo>"         → github.com/<org>/<repo>
-//   - "https://..." full URL → as-is (must point at a git repo)
-// Each form may carry an optional "#<ref>" suffix to pin a tag or branch:
-//   chrome#v1.2 / solid-apps/chrome#main / https://...#v2
-// And an optional "=<name>" suffix to override the pod-path name, useful
-// when the repo's last segment isn't what you want under /public/apps/
-// (e.g. "litecut/litecut.github.io=litecut").
 function parseAppSpec(input) {
-  // Pull off the rename suffix first, then the ref suffix.
   let base = input;
   let renameName = null;
   const eqIx = base.lastIndexOf('=');
@@ -333,40 +298,15 @@ const options = {
   auth: true,
   open: true,
   git: true,
-  // 'folder' (default) = friendlier container listing (table + breadcrumb)
-  // that falls back to JSON-LD when the resource isn't a container.
-  // 'json' = minimal JSON-LD pretty-print (the developer view).
   browser: 'folder',
-  // Off by default — keeps jspod Solid-pure. Opt in here when you want
-  // a Nostr identity on the pod (JSS generates a Schnorr secp256k1
-  // keypair on first start, stores it at <pod>/private/privkey.jsonld,
-  // and publishes the pubkey in the WebID profile). The nosdav-server
-  // wrapper will flip this on by default.
   provisionKeys: false,
-  // Auto-install the `default` bundle on the first run (when
-  // /public/apps/ has nothing in it beyond the bundled pilot).
-  // --no-bootstrap opts out. See #54.
   bootstrap: true
 };
 
-// Auth-ladder rung-1 credentials. See issue #6: jspod ships a deliberately
-// weak default sign-in so the new user is on a working pod within seconds,
-// with a clearly-marked path to climb (change password / add a passkey).
-// Safe because the default host is localhost-only.
-// Username is fixed by JSS for root pods (server.js:970). Password defaults
-// to 'me' but can be overridden via JSS_SINGLE_USER_PASSWORD so the env
-// override documented in the README actually takes effect (and the banner
-// shows the effective password, not a stale default).
 const RUNG_1_USERNAME = 'me';
 const RUNG_1_PASSWORD = process.env.JSS_SINGLE_USER_PASSWORD || 'me';
 const RUNG_1_PASSWORD_FROM_ENV = !!process.env.JSS_SINGLE_USER_PASSWORD;
 
-// Require a value after a value-taking flag. Without this guard, a stray
-// `jspod --host` (no value) reads `undefined` from args[++i] and the next
-// .replace() call throws a cryptic TypeError. We also reject values that
-// look like another option (`-`-prefixed) — otherwise `jspod --host
-// --no-auth` would silently consume `--no-auth` as the host value, drop
-// the intended flag, and bind the server to a literal string '--no-auth'.
 function requireValue(flag, value) {
   if (value === undefined) {
     console.error(chalk.red(`✗ Missing value for ${flag}`));
@@ -388,9 +328,6 @@ for (let i = 0; i < args.length; i++) {
   if (arg === '--port' || arg === '-p') {
     const raw = requireValue(arg, args[++i]);
     const parsed = parseInt(raw, 10);
-    // Reject non-numeric / out-of-range / privileged ports. parseInt('abc')
-    // returns NaN, which would silently propagate to JSS as `--port NaN`
-    // and produce a confusing crash deep in the server.
     if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535 || String(parsed) !== raw.trim()) {
       console.error(chalk.red(`✗ Invalid port: ${raw}`));
       console.error(chalk.dim('Port must be an integer in the range 1-65535.'));
@@ -398,15 +335,7 @@ for (let i = 0; i < args.length; i++) {
     }
     options.port = parsed;
   } else if (arg === '--host' || arg === '-h') {
-    // Strip optional brackets from IPv6 literals so a user-friendly
-    // `--host [::1]` paste-in stays canonical. formatUrl re-adds the
-    // brackets where they belong in URLs; the raw host going to JSS
-    // and to comparisons remains the unbracketed literal.
     const rawHost = requireValue(arg, args[++i]).replace(/^\[|\]$/g, '');
-    // Reject IPv6 zone identifiers — WHATWG URL spec doesn't support
-    // them, so any URL we built (banner, browser auto-open, readiness
-    // probe) would be unparseable. Better to fail fast with a clear
-    // message than to ship a broken auto-open silently.
     if (rawHost.includes('%')) {
       console.error(chalk.red(`✗ IPv6 zone identifiers are not supported: ${rawHost}`));
       console.error(chalk.dim('Bind to a non-zoned address (e.g. ::1, 127.0.0.1, or your LAN IP) instead.'));
@@ -489,95 +418,6 @@ for (let i = 0; i < args.length; i++) {
   }
 }
 
-// Ensure data directory exists
-if (!existsSync(options.root)) {
-  mkdirSync(options.root, { recursive: true });
-}
-
-// Find a free port starting at the requested one. Mirrors Vite's
-// behaviour: shift up by one and try again, up to 10 attempts. We probe
-// by binding a throwaway server on the same host the spawned JSS will
-// use, so the result reflects the actual interface we'll claim.
-async function findFreePort(startPort, host, maxTries = 10) {
-  for (let p = startPort; p < startPort + maxTries; p++) {
-    const free = await new Promise((resolve) => {
-      const srv = createServer();
-      srv.once('error', () => resolve(false));
-      srv.once('listening', () => srv.close(() => resolve(true)));
-      srv.listen(p, host);
-    });
-    if (free) return p;
-  }
-  return null;
-}
-
-const requestedPort = options.port;
-const freePort = await findFreePort(requestedPort, options.host);
-if (freePort === null) {
-  console.error(chalk.red(`✗ No free port in range ${requestedPort}-${requestedPort + 9} on ${options.host}.`));
-  console.error(chalk.dim('Pass --port <number> to pick a different starting port.'));
-  process.exit(1);
-}
-if (freePort !== requestedPort) {
-  console.log(chalk.yellow(`Port ${requestedPort} is in use, using ${freePort} instead.`));
-}
-options.port = freePort;
-
-// Resolve the JWT signing secret. Priority:
-//   1. TOKEN_SECRET env var (operator-controlled)
-//   2. Persisted random secret at <root>/.token-secret (generated on
-//      first run, mode 0600). Same data dir always produces the same
-//      effective secret across restarts — sessions and refresh tokens
-//      survive process bounces.
-// Generating per-data-dir avoids the previous footgun of a hardcoded
-// fallback string that anyone could use to forge JWTs against a
-// non-loopback deployment.
-function resolveTokenSecret(rootDir) {
-  if (process.env.TOKEN_SECRET) return process.env.TOKEN_SECRET;
-  const secretFile = join(rootDir, '.token-secret');
-  if (existsSync(secretFile)) {
-    // Tighten perms on every read: writeFileSync's `mode` option only
-    // applies to *creation*, so a regenerated file (overwritten in
-    // place) or a manually-touched file may have inherited broader
-    // permissions. Stat-then-chmod also warns the operator if the
-    // file was previously group/world-readable.
-    ensureMode0600(secretFile);
-    const loaded = readFileSync(secretFile, 'utf8').trim();
-    // Guard against a truncated / empty / accidentally-overwritten
-    // secret file. A short-or-empty secret would silently weaken JWT
-    // signing — regenerate and warn rather than ship the bad value.
-    if (loaded.length >= 32) return loaded;
-    console.warn(chalk.yellow(
-      `⚠  ${secretFile} is empty or too short (${loaded.length} chars); regenerating.`
-    ));
-  }
-  const secret = randomBytes(48).toString('base64');
-  writeFileSync(secretFile, secret, { mode: 0o600 });
-  // Explicit chmod covers the overwrite case (mode option in
-  // writeFileSync is ignored when the file already exists).
-  ensureMode0600(secretFile);
-  return secret;
-}
-
-function ensureMode0600(path) {
-  try {
-    const mode = statSync(path).mode & 0o777;
-    if (mode !== 0o600) {
-      // Surface the previous mode so operators can investigate how the
-      // file became group/world-readable (or just learn that jspod is
-      // tightening it for them).
-      console.warn(chalk.yellow(
-        `⚠  Tightening permissions on ${path} (was ${mode.toString(8).padStart(3, '0')}, now 600)`
-      ));
-      chmodSync(path, 0o600);
-    }
-  } catch {
-    // chmod is a no-op on Windows and may fail on exotic filesystems.
-    // Don't crash startup over it; the secret is still in use.
-  }
-}
-const tokenSecret = resolveTokenSecret(options.root);
-
 // Display startup banner
 console.log(chalk.cyan(`
 ╔═══════════════════════════════════════════════════════════════════╗
@@ -610,11 +450,6 @@ if (options.auth && !options.multiuser) {
     : 'Sign In (rung 1 of the auth ladder):';
   console.log('\n' + chalk.bold.white(`🔑 ${rungLabel}\n`));
   console.log(chalk.cyan('   ├─ ') + chalk.white('Username:  ') + chalk.bold.green(RUNG_1_USERNAME));
-  // Only print the literal password when it's the rung-1 default. If
-  // the user set a real password via env, echoing it to stdout would
-  // leak into terminal scrollback, shell history capture, CI logs, and
-  // shared sessions. They already know the value they set; the banner
-  // just confirms it was picked up.
   if (RUNG_1_PASSWORD_FROM_ENV) {
     console.log(chalk.cyan('   ├─ ') + chalk.white('Password:  ') + chalk.dim('(hidden — set via JSS_SINGLE_USER_PASSWORD)'));
   } else {
@@ -622,24 +457,12 @@ if (options.auth && !options.multiuser) {
   }
   console.log(chalk.cyan('   └─ ') + chalk.dim('Climb: change the password or add a passkey from account settings'));
 
-  // Loud warning if the rung-1 known credentials are reachable beyond
-  // the local machine. See issue #6 ("auth ladder"): rung 1 is only
-  // safe when the host is loopback-only. Any other bind exposes the
-  // well-known me/me credentials to the LAN (or worse).
-  // Loopback covers the full 127.0.0.0/8 IPv4 range plus IPv6 ::1.
-  // (Bracketed `[::1]` input is stripped to `::1` at CLI parse time
-  // — see options.host parsing — so it matches here without a
-  // bracketed branch.)
   const isLoopback =
     options.host === 'localhost' ||
     /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(options.host) ||
     options.host === '::1';
   if (!isLoopback) {
     if (RUNG_1_PASSWORD_FROM_ENV) {
-      // Custom password from env. Still worth warning the user that
-      // their sign-in is now reachable from anywhere this host
-      // answers, but no longer accurate to call the credentials
-      // "well-known."
       console.log('\n' + chalk.bold.red('⚠  Warning: ') + chalk.yellow(
         `--host ${options.host} exposes single-user sign-in beyond localhost.`
       ));
@@ -668,274 +491,44 @@ console.log(chalk.cyan('   └─ ') + chalk.white('WebID:      ') + chalk.blue.
 console.log('\n' + chalk.dim('Press ') + chalk.bold.red('Ctrl+C') + chalk.dim(' to stop the server\n'));
 console.log(chalk.yellow('⏳ Initializing server components...\n'));
 
-// Point JSS at jspod's minimal data browser instead of the full mashlib
-// bundle. The page-is-the-data philosophy: JSS already embeds the
-// resource as JSON-LD in #dataisland, so the "browser" only needs to
-// paint that data with clickable URIs (~200 bytes of JS + ~200 bytes
-// of CSS, both shipped in this npm package). Version-pinned jsdelivr
-// URL is immutable per version, so a published jspod release will
-// always load the matching browser code.
-const browserFile = options.browser === 'folder' ? 'data-browser-folder.js' : 'data-browser.js';
-const dataBrowserUrl = `https://cdn.jsdelivr.net/npm/jspod@${pkg.version}/${browserFile}`;
-
-// Build jss arguments
-const jssArgs = [
-  'start',
-  '--port', options.port.toString(),
-  '--host', options.host,
-  '--root', options.root,
-  '--notifications',
-  '--conneg',
-  '--mashlib-module', dataBrowserUrl
-];
-
-if (options.multiuser) {
-  // Multi-user mode is an explicit opt-out from jspod's single-user
-  // positioning (#3). The IDP stays available so users can register.
-  if (options.auth) jssArgs.push('--idp');
-} else {
-  // Default: single-user personal pod with rung-1 credentials seeded.
-  // The pod, IDP, and known credentials are created on first start;
-  // every subsequent start is a no-op (JSS is idempotent on the seed).
-  jssArgs.push('--no-multiuser', '--single-user');
-  if (options.auth) {
-    jssArgs.push('--idp');
-    // Pass the rung-1 placeholder on argv (it has no secrecy property
-    // — anyone reading the docs already knows the literal 'me'). For
-    // an env-supplied password, *don't* re-expose it on argv where
-    // `ps`, service-manager logs, and other local users can read it.
-    // JSS reads JSS_SINGLE_USER_PASSWORD from env directly when no
-    // CLI flag is given, and we forward process.env to the child.
-    if (!RUNG_1_PASSWORD_FROM_ENV) {
-      jssArgs.push('--single-user-password', RUNG_1_PASSWORD);
-    }
-  }
-}
-
-if (!options.auth) {
-  // JSS's `--public` is the real no-auth switch: skip WAC, open
-  // read/write. Without it, `--no-auth` would only mean "no IDP"
-  // — the pod would still be ACL-gated and unreachable.
-  jssArgs.push('--public');
-}
-
-// Enable JSS's git HTTP backend by default so the pod is a real
-// git remote (clone for public-read paths, push for owner-write
-// paths, auto-init on first push since JSS 0.0.195). Users who
-// don't want this surface can pass --no-git.
-jssArgs.push(options.git ? '--git' : '--no-git');
-
-// Off by default. JSS generates a Schnorr secp256k1 keypair on first
-// start, writes it to <pod>/private/privkey.jsonld (mode 0600), and
-// publishes the pubkey in the WebID profile as a Multikey
-// verificationMethod. Pairs with the existing /.well-known/did/nostr/
-// resolution endpoint so the pod becomes its own DID resolver.
-if (options.provisionKeys) jssArgs.push('--provision-keys');
-if (options.mcp) jssArgs.push('--mcp');
-
-// Start JSS with enhanced PATH to find the binary
-const jss = spawn('jss', jssArgs, {
-  stdio: 'inherit',
-  env: {
-    ...process.env,
-    PATH: `${join(__dirname, 'node_modules', '.bin')}${delimiter}${process.env.PATH}`,
-    TOKEN_SECRET: tokenSecret,
-    NODE_ENV: process.env.NODE_ENV || 'development'
-  }
-});
-
-jss.on('error', (error) => {
+// Hand off to the programmatic API. Any pre-flight failure (no free
+// port, jss not found, etc.) surfaces as a thrown error here.
+let handle;
+try {
+  handle = await start(options);
+} catch (e) {
   console.error(chalk.red('\n✗ Failed to start server'));
-  console.error(chalk.dim(error.message));
+  console.error(chalk.dim(e.message));
+  process.exit(1);
+}
+
+handle.ready.catch((e) => {
+  console.error(chalk.red('\n✗ Server failed to become ready'));
+  console.error(chalk.dim(e.message));
   process.exit(1);
 });
 
-// Auto-open the browser once the server is responsive (single-user first-run delight).
-// Opt out with --no-open, or by running in CI / SSH / non-TTY environments.
-const browserUrl = formatUrl(options.host, options.port);
-
-function shouldAutoOpen() {
-  if (!options.open) return false;
-  // Require both stdin and stdout to be TTYs so that piped invocations
-  // (e.g. `echo | jspod`) are treated as non-interactive.
-  if (!process.stdin.isTTY || !process.stdout.isTTY) return false;
-  if (process.env.CI) return false;
-  if (process.env.SSH_CONNECTION || process.env.SSH_CLIENT || process.env.SSH_TTY) return false;
-  if (process.env.TERM === 'dumb') return false;
-  return true;
-}
-
-async function waitForReady(url, timeoutMs = 30000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const ac = new AbortController();
-      const t = setTimeout(() => ac.abort(), 1000);
-      await fetch(url, { signal: ac.signal, redirect: 'manual' });
-      clearTimeout(t);
-      return true;
-    } catch {
-      await new Promise((r) => setTimeout(r, 250));
-    }
-  }
-  return false;
-}
-
-function openInBrowser(url) {
-  let cmd, args;
-  if (process.platform === 'darwin') {
-    cmd = 'open';
-    args = [url];
-  } else if (process.platform === 'win32') {
-    cmd = 'cmd';
-    args = ['/c', 'start', '""', url];
-  } else {
-    cmd = 'xdg-open';
-    args = [url];
-  }
-  const child = spawn(cmd, args, { stdio: 'ignore', detached: true });
-  child.on('error', () => {}); // best-effort; never block the server
-  child.unref();
-}
-
-// Share one readiness check between the welcome-overwrite step and the
-// auto-open path so we don't poll the server twice.
-const ready = waitForReady(browserUrl);
-
-// Always overwrite pod-data/index.html with jspod's welcome page once
-// JSS has finished its pod init. This is a stopgap — there's no clean
-// hook in JSS today for a downstream wrapper to ship its own root
-// landing page. Tracked upstream in a separate issue. Doing this
-// after readiness avoids a race where JSS's init might rewrite the
-// file on top of ours.
-//
-// Also seed pod-data/public/links.jsonld on first start so the /public/
-// tile lands the user on something tangible instead of an empty
-// container listing. This one is skip-if-exists (it's user content
-// — never overwrite a customized version).
-ready.then((ok) => {
-  if (!ok) return;
-  try {
-    const indexSrc = join(__dirname, 'welcome.html');
-    const indexDst = join(options.root, 'index.html');
-    if (existsSync(indexSrc)) copyFileSync(indexSrc, indexDst);
-
-    // signin.html is a jspod-owned static page; always-overwrite so
-    // upgrades to the sign-in flow ship immediately. Pair with a .acl
-    // granting public read so unauthenticated visitors can reach it
-    // (mirrors JSS's index.html.acl pattern).
-    const signinSrc = join(__dirname, 'signin.html');
-    const signinDst = join(options.root, 'signin.html');
-    if (existsSync(signinSrc)) copyFileSync(signinSrc, signinDst);
-    const signinAclSrc = join(__dirname, 'signin.html.acl');
-    const signinAclDst = join(options.root, 'signin.html.acl');
-    if (existsSync(signinAclSrc)) copyFileSync(signinAclSrc, signinAclDst);
-
-    // account.html — post-sign-in dashboard. Same overwrite + public-
-    // read pattern as signin.html. Both pages render their useful
-    // state from a restored solid-oidc session; signed-out visitors
-    // see a "sign in" prompt rather than a blank page.
-    const acctSrc = join(__dirname, 'account.html');
-    const acctDst = join(options.root, 'account.html');
-    if (existsSync(acctSrc)) copyFileSync(acctSrc, acctDst);
-    const acctAclSrc = join(__dirname, 'account.html.acl');
-    const acctAclDst = join(options.root, 'account.html.acl');
-    if (existsSync(acctAclSrc)) copyFileSync(acctAclSrc, acctAclDst);
-
-    // docs.html + .acl — operator-facing reference. Same overwrite +
-    // public-read pattern as the rest of the jspod-owned static pages.
-    const docsSrc = join(__dirname, 'docs.html');
-    const docsDst = join(options.root, 'docs.html');
-    if (existsSync(docsSrc)) copyFileSync(docsSrc, docsDst);
-    const docsAclSrc = join(__dirname, 'docs.html.acl');
-    const docsAclDst = join(options.root, 'docs.html.acl');
-    if (existsSync(docsAclSrc)) copyFileSync(docsAclSrc, docsAclDst);
-
-    const linksSrc = join(__dirname, 'links.jsonld');
-    const linksDst = join(options.root, 'public', 'links.jsonld');
-    if (existsSync(linksSrc) && !existsSync(linksDst)) {
-      copyFileSync(linksSrc, linksDst);
-    }
-
-    // Self-host bundled Solid apps under /public/apps/. Skip-if-exists
-    // so the user can pin / upgrade individual apps manually. The
-    // public/.acl already grants public read with acl:default, so no
-    // separate ACLs are needed for these subdirectories.
-    const appsSrc = join(__dirname, 'apps');
-    const appsDst = join(options.root, 'public', 'apps');
-    // Capture whether the apps dir already existed *before* we copy
-    // pilot in. If it didn't, this is a genuine first run and we
-    // bootstrap the `default` bundle below.
-    const appsDirExisted = existsSync(appsDst);
-    if (existsSync(appsSrc) && !appsDirExisted) {
-      cpSync(appsSrc, appsDst, { recursive: true });
-    }
-
-    // First-run bootstrap (#54): on a fresh pod, install the `default`
-    // bundle so the welcome page is populated rather than near-empty.
-    // Opt out with --no-bootstrap. Skipped on no-auth pods (the install
-    // path needs the IDP to mint a bearer token).
-    //
-    // Spawn as a child process rather than calling runInstall() directly:
-    // runInstall has several process.exit() calls that would kill the
-    // running pod on any sub-error. The child runs concurrently with the
-    // pod and bubbles its own status without affecting the parent.
-    if (!appsDirExisted && options.bootstrap && options.auth) {
-      console.log(chalk.bold.white(`\n📦 First run — installing the `) +
-                  chalk.yellow('default') +
-                  chalk.bold.white(` bundle (skip next time with `) +
-                  chalk.cyan('--no-bootstrap') +
-                  chalk.bold.white(')...\n'));
-      const podUrl = browserUrl.replace(/\/$/, '');
-      const child = spawn(
-        process.execPath,
-        [process.argv[1], 'install', '--pod', podUrl, '--bundle', 'default'],
-        { stdio: 'inherit' }
-      );
-      child.on('exit', (code) => {
-        if (code !== 0) {
-          console.error(chalk.red(`\n✗ Bootstrap exited with code ${code}.`));
-          console.error(chalk.dim('  Install apps manually with `jspod install`.'));
-        }
-      });
-      child.on('error', (e) => {
-        console.error(chalk.red(`\n✗ Bootstrap failed to start: ${e.message}`));
-      });
-    }
-  } catch {
-    // best-effort: failures are silent; user falls back to whatever
-    // JSS already wrote (or nothing for links.jsonld).
-  }
-});
-
-if (shouldAutoOpen()) {
-  ready.then((ok) => {
-    if (ok) {
-      console.log(chalk.green(`\n🌐 Opening ${browserUrl} in your browser...`));
-      openInBrowser(browserUrl);
-    }
-  });
-}
-
-jss.on('exit', (code) => {
-  if (code !== 0) {
+// JSS child exit: if it dies on its own with a non-zero status, the
+// CLI should follow. Signal-initiated exits (SIGTERM via Ctrl+C) are
+// handled by the SIGINT handler below.
+handle.exit.then(({ code, signal }) => {
+  if (signal) return; // shutdown handler will exit
+  if (code !== 0 && code !== null) {
     console.error(chalk.red(`\n✗ Server exited with code ${code}`));
     process.exit(code);
   }
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('\n' + chalk.yellow('⚠  Shutting down gracefully...'));
-  jss.kill('SIGTERM');
-  setTimeout(() => {
-    console.log(chalk.green('✓  Server stopped'));
-    console.log(chalk.dim('\nGoodbye! 👋\n'));
-    process.exit(0);
-  }, 1000);
+  await handle.stop();
+  console.log(chalk.green('✓  Server stopped'));
+  console.log(chalk.dim('\nGoodbye! 👋\n'));
+  process.exit(0);
 });
 
-process.on('SIGTERM', () => {
-  jss.kill('SIGTERM');
+process.on('SIGTERM', async () => {
+  await handle.stop();
   process.exit(0);
 });
