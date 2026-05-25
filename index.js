@@ -519,12 +519,15 @@ handle.exit.then(({ code, signal }) => {
   }
 });
 
-// Graceful shutdown
+// Graceful shutdown. The JSS child shares our process group, so a terminal
+// Ctrl+C delivers SIGINT to it too — it prints its own "Shutting down..."
+// and exits. We don't duplicate that line; we just await its exit (which
+// handle.stop() does) and then print the farewell, so the output stays
+// ordered ahead of the returning shell prompt instead of racing it.
 process.on('SIGINT', async () => {
-  console.log('\n' + chalk.yellow('⚠  Shutting down gracefully...'));
   await handle.stop();
-  console.log(chalk.green('✓  Server stopped'));
-  console.log(chalk.dim('\nGoodbye! 👋\n'));
+  console.log(chalk.green('\n✓  Server stopped'));
+  console.log(chalk.dim('Goodbye! 👋\n'));
   process.exit(0);
 });
 
