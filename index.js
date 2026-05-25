@@ -924,15 +924,22 @@ jss.on('exit', (code) => {
   }
 });
 
-// Graceful shutdown
+// Graceful shutdown. The JSS child shares our process group, so a terminal
+// Ctrl+C delivers SIGINT to it too — it prints its own "Shutting down..."
+// and exits. Don't duplicate that line; wait for the child's actual exit
+// before the farewell, so the output stays ordered ahead of the returning
+// shell prompt instead of racing a fixed timeout against it.
 process.on('SIGINT', () => {
-  console.log('\n' + chalk.yellow('⚠  Shutting down gracefully...'));
-  jss.kill('SIGTERM');
-  setTimeout(() => {
-    console.log(chalk.green('✓  Server stopped'));
-    console.log(chalk.dim('\nGoodbye! 👋\n'));
+  const farewell = () => {
+    console.log(chalk.green('\n✓  Server stopped'));
+    console.log(chalk.dim('Goodbye! 👋\n'));
     process.exit(0);
-  }, 1000);
+  };
+  if (jss.exitCode !== null || jss.signalCode !== null) return farewell();
+  jss.once('exit', farewell);
+  jss.kill('SIGTERM');
+  // Safety net: don't hang if the child ignores SIGTERM.
+  setTimeout(() => { try { jss.kill('SIGKILL'); } catch {} }, 5000);
 });
 
 process.on('SIGTERM', () => {
