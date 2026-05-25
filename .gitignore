@@ -5,4 +5,4 @@ pod-data/
 .DS_Store
 package-lock.json
 .claude/
-data
+/data/
