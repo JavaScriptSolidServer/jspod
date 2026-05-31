@@ -300,7 +300,9 @@ const options = {
   git: true,
   browser: 'folder',
   provisionKeys: false,
-  bootstrap: true
+  bootstrap: true,
+  nostr: false,
+  nostrPath: '/relay'
 };
 
 const RUNG_1_USERNAME = 'me';
@@ -362,6 +364,21 @@ for (let i = 0; i < args.length; i++) {
     options.mcp = false;
   } else if (arg === '--no-bootstrap') {
     options.bootstrap = false;
+  } else if (arg === '--nostr') {
+    options.nostr = true;
+  } else if (arg === '--no-nostr') {
+    options.nostr = false;
+  } else if (arg === '--nostr-path') {
+    options.nostrPath = requireValue(arg, args[++i]);
+  } else if (arg === '--nostr-max-events') {
+    const raw = requireValue(arg, args[++i]);
+    const parsed = parseInt(raw, 10);
+    if (!Number.isInteger(parsed) || parsed < 1 || String(parsed) !== raw.trim()) {
+      console.error(chalk.red(`✗ Invalid --nostr-max-events: ${raw}`));
+      console.error(chalk.dim('Must be a positive integer.'));
+      process.exit(1);
+    }
+    options.nostrMaxEvents = parsed;
   } else if (arg === '--browser') {
     const raw = requireValue(arg, args[++i]);
     if (raw !== 'json' && raw !== 'folder') {
@@ -394,6 +411,9 @@ for (let i = 0; i < args.length; i++) {
     console.log(chalk.green('  --browser ') + chalk.yellow('<folder|json>') + chalk.dim('  Data browser style (default: folder)'));
     console.log(chalk.green('  --provision-keys') + chalk.dim('       Generate a Nostr-compatible owner keypair on first start'));
     console.log(chalk.green('  --mcp') + chalk.dim('                  Expose /mcp (Model Context Protocol) tool surface for agents'));
+    console.log(chalk.green('  --nostr') + chalk.dim('                Run a Nostr relay (NIP-01) at <pod>/relay'));
+    console.log(chalk.green('  --nostr-path ') + chalk.yellow('<path>') + chalk.dim('     Relay WebSocket path (default: /relay)'));
+    console.log(chalk.green('  --nostr-max-events ') + chalk.yellow('<n>') + chalk.dim(' Max events kept in relay memory (default: 1000)'));
     console.log(chalk.green('  --no-bootstrap') + chalk.dim('         Skip auto-install of the `default` app bundle on first run'));
     console.log(chalk.green('  -v, --version') + chalk.dim('           Show jspod version'));
     console.log(chalk.green('  --help') + chalk.dim('                  Show this help message\n'));
@@ -406,6 +426,7 @@ for (let i = 0; i < args.length; i++) {
     console.log(chalk.dim('  • WebID authentication'));
     console.log(chalk.dim('  • Passkey support'));
     console.log(chalk.dim('  • WebSocket notifications'));
+    console.log(chalk.dim('  • Nostr relay (NIP-01, opt-in via --nostr)'));
     console.log(chalk.dim('  • JSON-LD native\n'));
     console.log(chalk.white('Resources:'));
     console.log(chalk.blue('  https://github.com/JavaScriptSolidServer/jspod'));
@@ -442,7 +463,10 @@ console.log(chalk.cyan('   ├─ ') + chalk.white('URL:       ') + chalk.bold.g
 console.log(chalk.cyan('   ├─ ') + chalk.white('Port:      ') + chalk.yellow(options.port));
 console.log(chalk.cyan('   ├─ ') + chalk.white('Host:      ') + chalk.yellow(options.host));
 console.log(chalk.cyan('   ├─ ') + chalk.white('Pod Root:  ') + chalk.yellow(options.root));
-console.log(chalk.cyan('   └─ ') + chalk.white('Mode:      ') + (options.multiuser ? chalk.yellow('Multi-user') : chalk.yellow('Single-user')));
+console.log(chalk.cyan(options.nostr ? '   ├─ ' : '   └─ ') + chalk.white('Mode:      ') + (options.multiuser ? chalk.yellow('Multi-user') : chalk.yellow('Single-user')));
+if (options.nostr) {
+  console.log(chalk.cyan('   └─ ') + chalk.white('Relay:     ') + chalk.bold.green(`enabled (${options.nostrPath})`));
+}
 
 if (options.auth && !options.multiuser) {
   const rungLabel = RUNG_1_PASSWORD_FROM_ENV
