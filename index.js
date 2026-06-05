@@ -381,9 +381,9 @@ for (let i = 0; i < args.length; i++) {
     options.nostrMaxEvents = parsed;
   } else if (arg === '--browser') {
     const raw = requireValue(arg, args[++i]);
-    if (raw !== 'json' && raw !== 'folder') {
+    if (raw !== 'json' && raw !== 'folder' && raw !== 'panes') {
       console.error(chalk.red(`✗ Invalid --browser value: ${raw}`));
-      console.error(chalk.dim('Must be one of: json, folder'));
+      console.error(chalk.dim('Must be one of: json, folder, panes'));
       process.exit(1);
     }
     options.browser = raw;
@@ -408,7 +408,7 @@ for (let i = 0; i < args.length; i++) {
     console.log(chalk.green('  --no-auth') + chalk.dim('              Disable authentication'));
     console.log(chalk.green('  --no-open') + chalk.dim('              Do not open the browser automatically'));
     console.log(chalk.green('  --no-git') + chalk.dim('               Disable JSS\'s git HTTP backend (it is on by default)'));
-    console.log(chalk.green('  --browser ') + chalk.yellow('<folder|json>') + chalk.dim('  Data browser style (default: folder)'));
+    console.log(chalk.green('  --browser ') + chalk.yellow('<folder|json|panes>') + chalk.dim('  Data browser style (default: folder; panes = type-driven panes from /public/panes/)'));
     console.log(chalk.green('  --provision-keys') + chalk.dim('       Generate a Nostr-compatible owner keypair on first start'));
     console.log(chalk.green('  --mcp') + chalk.dim('                  Expose /mcp (Model Context Protocol) tool surface for agents'));
     console.log(chalk.green('  --nostr') + chalk.dim('                Run a Nostr relay (NIP-01) at <pod>/relay'));
