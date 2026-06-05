@@ -10,9 +10,18 @@
 //   3. No matching pane → pretty-printed JSON-LD (same as data-browser.js).
 //
 // Single file, no build, no framework. Local pane contract (ES module):
-//   export default { canHandle(node, h) -> boolean, render(node, h) -> htmlString }
-// where h = { escape, prop, propAll, first, idOf, types, host, fmtDate, localName }.
-// (prop may return an array for multi-valued JSON-LD; use h.first for single values.)
+//   export default {
+//     canHandle(node, h) -> boolean,
+//     render(node, h)    -> htmlString | Promise<htmlString>   // null/'' declines
+//   }
+// Panes are offered BOTH single resources and containers (h.isContainer marks
+// which). A pane that returns null is skipped, so a container pane can decline a
+// folder it doesn't recognise and fall through to the folder table.
+// h = { escape, prop, propAll, first, idOf, types, host, fmtDate, localName,
+//       isContainer, path, children, fetchResource(url) }
+//   - prop may return an array for multi-valued JSON-LD; use h.first for one value.
+//   - children: parsed [{ url, type, ... }] of a container's members.
+//   - fetchResource(url): async, returns a child's primary node (for collections).
 
 document.head.insertAdjacentHTML('beforeend', `<style>
 body{font:14px/1.55 system-ui,-apple-system,sans-serif;margin:0;color:#222;background:#f3eee5}
@@ -65,18 +74,33 @@ body{font:14px/1.55 system-ui,-apple-system,sans-serif;margin:0;color:#222;backg
     const items = doc ? parseContainer(doc, window.location.href) : null;
     const isContainer = Array.isArray(items);
 
-    const target = document.getElementById('mashlib');
-    if (isContainer) {
-      target.innerHTML = `<div class="db">${navHTML}<div class="db-card">${renderFolder(items, here)}</div></div>`;
-      return;
-    }
-
-    // Single resource: try a pod-local pane, else fall back to the JSON dump.
     const node = primaryNode(doc);
-    const paneHTML = node ? await renderLocalPane(node) : null;
+    const h = {
+      escape, prop, propAll, first: firstVal, idOf, types: typesOf, host: hostOf,
+      fmtDate: fmtDay, localName: localType,
+      isContainer, path: window.location.pathname, children: items || [],
+      // Fetch a child resource and return its primary node (for collection panes).
+      fetchResource: async (u) => {
+        try {
+          const r = await fetch(u, { headers: { Accept: 'application/ld+json' } });
+          if (!r.ok) return null;
+          return primaryNode(await r.json());
+        } catch (e) { return null; }
+      }
+    };
+
+    const target = document.getElementById('mashlib');
+    // Panes get first refusal for BOTH single resources and containers. A pane
+    // may return null/empty to decline (e.g. a collection pane on a folder it
+    // doesn't recognise), in which case we fall through to folder table / JSON.
+    const paneHTML = node ? await resolvePaneHTML(node, h) : null;
     if (paneHTML) {
       target.innerHTML = `<div class="db">${navHTML}<div class="db-pane-wrap">${paneHTML}</div>` +
         `<details class="db-src"><summary>Source</summary>${renderJson(doc)}</details></div>`;
+      return;
+    }
+    if (isContainer) {
+      target.innerHTML = `<div class="db">${navHTML}<div class="db-card">${renderFolder(items, here)}</div></div>`;
     } else {
       target.innerHTML = `<div class="db">${navHTML}${renderJson(doc)}</div>`;
     }
@@ -84,12 +108,15 @@ body{font:14px/1.55 system-ui,-apple-system,sans-serif;margin:0;color:#222;backg
 
   // ---- local panes: discovered from /public/panes/, augmentable per-pod ----
 
-  async function renderLocalPane(node) {
+  async function resolvePaneHTML(node, h) {
     const panes = await loadLocalPanes();
-    if (!panes.length) return null;
-    const h = { escape, prop, propAll, first: firstVal, idOf, types: typesOf, host: hostOf, fmtDate: fmtDay, localName: localType };
     for (const p of panes) {
-      try { if (p.canHandle(node, h)) return p.render(node, h); } catch (e) { /* skip */ }
+      try {
+        if (p.canHandle(node, h)) {
+          const out = await p.render(node, h);
+          if (out) return out;
+        }
+      } catch (e) { /* skip */ }
     }
     return null;
   }
