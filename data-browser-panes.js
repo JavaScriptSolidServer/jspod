@@ -11,7 +11,8 @@
 //
 // Single file, no build, no framework. Local pane contract (ES module):
 //   export default { canHandle(node, h) -> boolean, render(node, h) -> htmlString }
-// where h = { escape, prop, propAll, idOf, types, host, fmtDate, localName }.
+// where h = { escape, prop, propAll, first, idOf, types, host, fmtDate, localName }.
+// (prop may return an array for multi-valued JSON-LD; use h.first for single values.)
 
 document.head.insertAdjacentHTML('beforeend', `<style>
 body{font:14px/1.55 system-ui,-apple-system,sans-serif;margin:0;color:#222;background:#f3eee5}
@@ -86,7 +87,7 @@ body{font:14px/1.55 system-ui,-apple-system,sans-serif;margin:0;color:#222;backg
   async function renderLocalPane(node) {
     const panes = await loadLocalPanes();
     if (!panes.length) return null;
-    const h = { escape, prop, propAll, idOf, types: typesOf, host: hostOf, fmtDate: fmtDay, localName: localType };
+    const h = { escape, prop, propAll, first: firstVal, idOf, types: typesOf, host: hostOf, fmtDate: fmtDay, localName: localType };
     for (const p of panes) {
       try { if (p.canHandle(node, h)) return p.render(node, h); } catch (e) { /* skip */ }
     }
@@ -135,7 +136,9 @@ body{font:14px/1.55 system-ui,-apple-system,sans-serif;margin:0;color:#222;backg
     return undefined;
   }
   function propAll(node, key) { const v = prop(node, key); return v == null ? [] : (Array.isArray(v) ? v : [v]); }
-  function idOf(v) { return v == null ? '' : (typeof v === 'string' ? v : (v['@id'] || v.id || '')); }
+  // First value of a possibly-multi-valued JSON-LD property.
+  function firstVal(v) { return Array.isArray(v) ? v[0] : v; }
+  function idOf(v) { if (Array.isArray(v)) v = v[0]; return v == null ? '' : (typeof v === 'string' ? v : (v['@id'] || v.id || '')); }
   function hostOf(u) { try { return new URL(u).host; } catch (e) { return u; } }
   function fmtDay(iso) {
     if (!iso) return '';

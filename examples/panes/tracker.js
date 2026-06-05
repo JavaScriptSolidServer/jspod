@@ -15,8 +15,8 @@ export default {
       return s === 'COMPLETED' || s === 'CANCELLED';
     };
     const active = issues.filter(i => !done(i));
-    const title = h.prop(node, 'title') || 'Tasks';
-    const row = i => `<li style="padding:8px 0;border-bottom:1px solid rgba(127,127,127,0.12);${done(i) ? 'color:#aaa;text-decoration:line-through;' : ''}">${done(i) ? '☑' : '☐'} ${h.escape(h.prop(i, 'summary') || h.idOf(i))}</li>`;
+    const title = h.first(h.prop(node, 'title')) || 'Tasks';
+    const row = i => `<li style="padding:8px 0;border-bottom:1px solid rgba(127,127,127,0.12);${done(i) ? 'color:#aaa;text-decoration:line-through;' : ''}">${done(i) ? '☑' : '☐'} ${h.escape(h.first(h.prop(i, 'summary')) || h.idOf(i))}</li>`;
     return `<div style="font-family:Inter,-apple-system,sans-serif;padding:24px 0 8px;">
       <div style="font-family:Georgia,serif;font-size:14px;font-style:italic;color:#999;margin-bottom:6px;">Tasks</div>
       <div style="font-size:26px;font-weight:600;color:#1a1a1a;margin-bottom:4px;">${h.escape(title)}</div>

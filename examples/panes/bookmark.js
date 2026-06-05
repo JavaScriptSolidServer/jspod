@@ -10,9 +10,9 @@ export default {
 
   render(node, h) {
     const url = h.idOf(h.prop(node, 'recalls'));
-    const title = h.prop(node, 'title') || url || 'Untitled bookmark';
+    const title = h.first(h.prop(node, 'title')) || url || 'Untitled bookmark';
     const site = h.host(url);
-    const date = h.fmtDate(h.prop(node, 'created'));
+    const date = h.fmtDate(h.first(h.prop(node, 'created')));
     const fav = url ? h.escape(new URL('/favicon.ico', url).href) : '';
     return `<div style="font-family:Inter,-apple-system,sans-serif;padding:24px 0 8px;">
       <div style="font-family:Georgia,serif;font-size:14px;font-style:italic;color:#999;margin-bottom:18px;">Bookmark</div>
