@@ -7,12 +7,11 @@
  * library shouldn't touch.
  */
 
-import { spawn, spawnSync } from 'child_process';
+import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, delimiter } from 'path';
 import chalk from 'chalk';
-import { existsSync, readFileSync, promises as fsPromises } from 'fs';
-import { tmpdir } from 'os';
+import { readFileSync } from 'fs';
 import { start, formatUrl } from './lib/start.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -29,265 +28,48 @@ if (args[0] === 'install') {
   process.exit(0);
 }
 
+// `jspod install` is a thin wrapper over upstream `jss install` — the
+// plumbing (spec parsing, bundles, IdP auth, git dual-push) moved into
+// JSS itself in 0.0.198 (JSS#464; see jspod#48). jspod keeps two policies:
+//   1. --pod defaults to jspod's port (5444; jss alone defaults to 4443)
+//   2. bare `jspod install` → the `default` bundle from solid-apps/bundles
+// `jss install --help` is the source of truth for flags and spec forms.
 async function runInstall(rest) {
-  const opts = {
-    pod: 'http://localhost:5444',
-    user: 'me',
-    password: process.env.JSS_SINGLE_USER_PASSWORD || 'me',
-    apps: [],
-    bundles: []
-  };
+  const jssArgs = ['install', ...rest];
+  if (!rest.includes('--pod')) jssArgs.push('--pod', 'http://localhost:5444');
+
+  // Detect a "bare" invocation (no app names, no --bundle) while stepping
+  // over value-taking flags, so `jspod install --user bob` still gets the
+  // default bundle but `jspod install chrome` does not.
+  const valueFlags = new Set(['--pod', '--user', '--password', '--bundle', '--nostr-privkey']);
+  let bare = true;
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
-    if (a === '--pod') opts.pod = rest[++i];
-    else if (a === '--user') opts.user = rest[++i];
-    else if (a === '--password') opts.password = rest[++i];
-    else if (a === '--bundle') opts.bundles.push(rest[++i]);
-    else if (a === '--help' || a === '-h') { printInstallHelp(); process.exit(0); }
-    else if (a.startsWith('--')) {
-      console.error(chalk.red(`✗ Unknown flag: ${a}`));
-      printInstallHelp();
-      process.exit(1);
+    if (a === '--bundle') { bare = false; i++; }
+    else if (valueFlags.has(a)) i++;
+    else if (!a.startsWith('-')) bare = false;
+  }
+  if (bare && !rest.includes('--help') && !rest.includes('-h')) {
+    jssArgs.push('--bundle', 'default');
+  }
+
+  // Same PATH-prepend trick as lib/start.js so the locally-installed jss
+  // binary wins regardless of how jspod itself was installed.
+  const child = spawn('jss', jssArgs, {
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      PATH: join(__dirname, 'node_modules', '.bin') + delimiter + process.env.PATH
     }
-    else opts.apps.push(a);
-  }
-
-  // Bare `jspod install` (no apps, no bundles) → install the `default`
-  // bundle. The bundle definition lives at solid-apps/bundles, so updates
-  // ship without a jspod release. Power users skip this by naming apps
-  // or passing --bundle explicitly.
-  if (opts.apps.length === 0 && opts.bundles.length === 0) {
-    opts.bundles.push('default');
-  }
-
-  // Expand any --bundle sources into the apps[] list.
-  for (const source of opts.bundles) {
-    let bundleSpecs;
-    try {
-      bundleSpecs = await loadBundle(source);
-    } catch (e) {
-      console.error(chalk.red(`✗ Couldn't load bundle "${source}": ${e.message}`));
-      process.exit(1);
-    }
-    console.log(chalk.dim(`bundle "${source}" → ${bundleSpecs.length} apps: ${bundleSpecs.join(', ')}`));
-    opts.apps.push(...bundleSpecs);
-  }
-  opts.pod = opts.pod.replace(/\/$/, '');
-
-  console.log(chalk.bold.white(`\nInstalling ${opts.apps.length} app${opts.apps.length === 1 ? '' : 's'} → `) +
-              chalk.green(opts.pod));
-  console.log('');
-
-  // Authenticate against the local pod's IDP. Token is needed to push to
-  // /public/apps/<name>/ on a default jspod (private-write inherits from
-  // /public/.acl: public-read, owner-write).
-  let token;
-  try {
-    const r = await fetch(`${opts.pod}/idp/credentials`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ username: opts.user, password: opts.password })
+  });
+  const code = await new Promise((resolve) => {
+    child.once('error', (e) => {
+      console.error(chalk.red(`✗ Could not run jss: ${e.message}`));
+      resolve(1);
     });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const j = await r.json();
-    token = j.access_token;
-    if (!token) throw new Error('no access_token in response');
-  } catch (e) {
-    console.error(chalk.red(`✗ Could not authenticate against ${opts.pod}: ${e.message}`));
-    console.error(chalk.dim('  Is jspod running?  → ') + chalk.bold('npx jspod'));
-    process.exit(1);
-  }
-
-  let okCount = 0;
-  for (const input of opts.apps) {
-    const spec = parseAppSpec(input);
-    if (spec.error) {
-      console.error(chalk.red(`✗ ${input}: ${spec.error}`));
-      continue;
-    }
-    const { source, name, ref } = spec;
-    const dest = `${opts.pod}/public/apps/${name}`;
-    // Respect the platform's tmp dir — `/tmp` is hardcoded out on
-    // Termux (Android), where the writable tmp is at $PREFIX/tmp.
-    const tmp = join(tmpdir(), `jspod-install-${name}-${process.pid}`);
-
-    // Clean stale tmp from a previous failed run
-    if (existsSync(tmp)) spawnSync('rm', ['-rf', tmp], { stdio: 'ignore' });
-
-    // Full clone (no --depth: shallow pushes are rejected by JSS git-receive).
-    // --branch picks a tag or branch when pinned (e.g. `foo/bar#v2`).
-    const cloneArgs = ['clone', '--quiet'];
-    if (ref) cloneArgs.push('--branch', ref);
-    cloneArgs.push(source, tmp);
-    const clone = spawnSync('git', cloneArgs, {
-      stdio: ['ignore', 'pipe', 'pipe']
-    });
-    if (clone.status !== 0) {
-      console.error(chalk.red(`✗ ${input}: clone failed`));
-      const err = clone.stderr?.toString?.().trim() || '';
-      if (err) console.error(chalk.dim(`  ${err.slice(0, 300)}`));
-      continue;
-    }
-
-    // Push to the pod. `updateInstead` (which extracts the working tree)
-    // only fires when the push targets the branch HEAD points at on the
-    // server. JSS 0.0.197+ auto-inits with HEAD=main; older versions
-    // honor the operator's `init.defaultBranch` (often `main`, sometimes
-    // `gh-pages` for GitHub-Pages-heavy users). Push to both — the one
-    // matching server-side HEAD extracts; the other just creates a ref.
-    // Idempotent on re-run.
-    const pushArgs = (branch) => ['-C', tmp, '-c',
-      `http.extraHeader=Authorization: Bearer ${token}`,
-      'push', dest, `HEAD:${branch}`];
-
-    const pushMain = spawnSync('git', pushArgs('main'),
-      { stdio: ['ignore', 'pipe', 'pipe'] });
-    const errMain = pushMain.stderr?.toString?.() || '';
-
-    // If the first push failed for a "won't auto-init" reason (path
-    // already has content, e.g. jspod's bundled pilot), don't keep going.
-    if (pushMain.status !== 0 && (errMain.includes('not found') || errMain.includes('404'))) {
-      console.log(chalk.yellow(`⊘ ${input}: skipped (path already in use — bundled or manually placed)`));
-      spawnSync('rm', ['-rf', tmp], { stdio: 'ignore' });
-      continue;
-    }
-
-    const pushPages = spawnSync('git', pushArgs('gh-pages'),
-      { stdio: ['ignore', 'pipe', 'pipe'] });
-
-    if (pushMain.status !== 0 && pushPages.status !== 0) {
-      console.error(chalk.red(`✗ ${input}: push failed`));
-      const err = (errMain + '\n' + (pushPages.stderr?.toString?.() || '')).trim();
-      console.error(chalk.dim(`  ${err.slice(0, 400)}`));
-      spawnSync('rm', ['-rf', tmp], { stdio: 'ignore' });
-      continue;
-    }
-
-    console.log(chalk.green(`✓ ${input}`) + chalk.dim(` → ${dest}/`));
-    okCount++;
-    spawnSync('rm', ['-rf', tmp], { stdio: 'ignore' });
-  }
-
-  console.log('');
-  console.log(chalk.bold(`${okCount}/${opts.apps.length} installed.`));
-  if (okCount > 0) {
-    console.log(chalk.dim('Open in browser: ') + chalk.cyan(`${opts.pod}/public/apps/`));
-  }
-}
-
-// Resolve a --bundle <source> argument to a fetchable URL or local file path.
-function resolveBundleSource(source) {
-  if (!source) throw new Error('bundle source required');
-  if (/^https?:\/\//.test(source)) return { kind: 'url', loc: source };
-  if (source.startsWith('./') || source.startsWith('/') || source.endsWith('.jsonld')) {
-    if (source.startsWith('./') || source.startsWith('/')) {
-      return { kind: 'file', loc: source };
-    }
-  }
-  if (source.includes('/')) {
-    const cleaned = source.replace(/^\/+|\/+$/g, '');
-    if (cleaned.split('/').length !== 2) {
-      throw new Error('expected <name>, <org>/<repo>, URL, or filesystem path');
-    }
-    return { kind: 'url', loc: `https://raw.githubusercontent.com/${cleaned}/HEAD/bundle.jsonld` };
-  }
-  if (!/^[a-z0-9][a-z0-9_.-]*$/i.test(source)) {
-    throw new Error(`invalid bundle name "${source}"`);
-  }
-  return { kind: 'url', loc: `https://raw.githubusercontent.com/solid-apps/bundles/HEAD/${source}.jsonld` };
-}
-
-async function loadBundle(source) {
-  const { kind, loc } = resolveBundleSource(source);
-  let text;
-  if (kind === 'file') {
-    text = await fsPromises.readFile(loc, 'utf8');
-  } else {
-    const r = await fetch(loc);
-    if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${loc}`);
-    text = await r.text();
-  }
-  let doc;
-  try { doc = JSON.parse(text); }
-  catch (e) { throw new Error(`bundle is not valid JSON: ${e.message}`); }
-  const items = doc['schema:itemListElement'] || doc.itemListElement || [];
-  if (!Array.isArray(items)) throw new Error('bundle has no schema:itemListElement array');
-  return items.map(item => {
-    if (typeof item === 'string') return item;
-    if (item && typeof item === 'object') return item['app:spec'] || item.spec || null;
-    return null;
-  }).filter(Boolean);
-}
-
-function parseAppSpec(input) {
-  let base = input;
-  let renameName = null;
-  const eqIx = base.lastIndexOf('=');
-  if (eqIx > 0) {
-    renameName = base.slice(eqIx + 1);
-    base = base.slice(0, eqIx);
-  }
-  let ref = null;
-  const hashIx = base.lastIndexOf('#');
-  if (hashIx > 0) {
-    ref = base.slice(hashIx + 1) || null;
-    base = base.slice(0, hashIx);
-  }
-  let source, name;
-  if (/^https?:\/\//.test(base)) {
-    source = base.replace(/\.git$/, '').replace(/\/$/, '');
-    name = source.split('/').pop();
-  } else if (base.includes('/')) {
-    const cleaned = base.replace(/\.git$/, '').replace(/^\/+|\/+$/g, '');
-    if (cleaned.split('/').length !== 2) {
-      return { error: 'expected <org>/<repo> shorthand' };
-    }
-    source = `https://github.com/${cleaned}`;
-    name = cleaned.split('/').pop();
-  } else {
-    source = `https://github.com/solid-apps/${base}`;
-    name = base;
-  }
-  if (renameName) name = renameName;
-  if (!/^[a-z0-9][a-z0-9_.-]*$/i.test(name)) {
-    return { error: `invalid pod-path name "${name}"` };
-  }
-  if (ref && !/^[a-z0-9][a-z0-9_./-]*$/i.test(ref)) {
-    return { error: `invalid ref "${ref}"` };
-  }
-  return { source, name, ref };
-}
-
-function printInstallHelp() {
-  console.log(chalk.cyan(`
-╔═══════════════════════════════════════════════════════════════════╗
-║                   jspod install - Help                             ║
-╚═══════════════════════════════════════════════════════════════════╝
-`));
-  console.log(chalk.white('Usage:'));
-  console.log(chalk.yellow('  jspod install') + chalk.dim(' [options] [<app>...]\n'));
-  console.log(chalk.white('Options:'));
-  console.log(chalk.green('  --pod ') + chalk.yellow('<url>') + chalk.dim('       Target pod (default: http://localhost:5444)'));
-  console.log(chalk.green('  --user ') + chalk.yellow('<name>') + chalk.dim('      Username (default: me)'));
-  console.log(chalk.green('  --password ') + chalk.yellow('<pw>') + chalk.dim('     Password (default: $JSS_SINGLE_USER_PASSWORD or "me")'));
-  console.log(chalk.green('  --bundle ') + chalk.yellow('<src>') + chalk.dim('    Install every app in a bundle. Source: <name> (e.g. starter,'));
-  console.log(chalk.dim('                       agentic, all), <org>/<repo>, https://… URL, or ./local.jsonld'));
-  console.log(chalk.green('  --help') + chalk.dim('             Show this help message\n'));
-  console.log(chalk.white('App spec:') + chalk.dim('  <name> | <org>/<repo> | https://github.com/<org>/<repo>'));
-  console.log(chalk.dim('             Optional suffixes:  #<branch-or-tag>   =<pod-path-name>'));
-  console.log('');
-  console.log(chalk.white('Examples:'));
-  console.log(chalk.dim('  jspod install chrome                            # solid-apps/chrome'));
-  console.log(chalk.dim('  jspod install chrome vellum pdf                 # several at once'));
-  console.log(chalk.dim('  jspod install                                   # default bundle (home, plaza, vellum, plume, …)'));
-  console.log(chalk.dim('  jspod install JavaScriptSolidServer/git         # any GitHub org/repo'));
-  console.log(chalk.dim('  jspod install litecut/litecut.github.io=litecut # rename pod path'));
-  console.log(chalk.dim('  jspod install solid-apps/chrome#v1              # pin a tag or branch'));
-  console.log(chalk.dim('  jspod install --bundle starter                  # curated starter set'));
-  console.log(chalk.dim('  jspod install --bundle agentic                  # agent stack'));
-  console.log(chalk.dim('  jspod install --bundle all                      # every solid-app'));
-  console.log(chalk.dim('  jspod install --pod http://192.168.0.1:5444 chrome'));
-  console.log('');
+    child.once('exit', (c) => resolve(c ?? 1));
+  });
+  process.exit(code);
 }
 
 const options = {
