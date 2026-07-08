@@ -52,13 +52,13 @@ nav.toc a{margin-right:1em}
 <p>jspod creates <code>pod-data/</code> in the current working directory on first start (or wherever you pass via <code>--root</code>). Everything the pod is, including identities and signing keys, lives under that single tree.</p>
 
 <pre class="tree"><span class="label">pod-data/</span>             <span class="note">your pod root</span>
-├── <span class="label">index.html</span>        <span class="note">welcome page — jspod overwrites every start</span>
+├── <span class="label">index.html</span>        <span class="note">welcome page — jspod-seeded, skip-if-exists</span>
 ├── <span class="label">index.html.acl</span>    <span class="note">public-read for the landing page (JSS-managed)</span>
-├── <span class="label">signin.html</span>       <span class="note">jspod's sign-in app — overwritten every start</span>
+├── <span class="label">signin.html</span>       <span class="note">jspod's sign-in app — seeded, skip-if-exists</span>
 ├── <span class="label">signin.html.acl</span>   <span class="note">public-read</span>
-├── <span class="label">account.html</span>      <span class="note">post-sign-in dashboard — overwritten every start</span>
+├── <span class="label">account.html</span>      <span class="note">post-sign-in dashboard — seeded, skip-if-exists</span>
 ├── <span class="label">account.html.acl</span>  <span class="note">public-read</span>
-├── <span class="label">docs.html</span>         <span class="note">this page — overwritten every start</span>
+├── <span class="label">docs.html</span>         <span class="note">this page — seeded, skip-if-exists</span>
 ├── <span class="label">docs.html.acl</span>     <span class="note">public-read</span>
 ├── <span class="label">profile/</span>
 │   └── <span class="label">card.jsonld</span>   <span class="note">your WebID profile (JSS-seeded)</span>
@@ -73,7 +73,7 @@ nav.toc a{margin-right:1em}
 └── <span class="label">.token-secret</span>     <span class="note">JWT signing secret (auto-generated, mode 0600)</span></pre>
 
 <div class="callout">
-<strong>Overwrite warning.</strong> <code>index.html</code>, <code>signin.html</code>, <code>account.html</code>, and <code>docs.html</code> are owned by jspod and overwritten on every <em>start</em>. Edits won't survive a restart. To customize, fork jspod or run JSS directly instead. The <code>public/links.jsonld</code> and <code>public/apps/pilot/</code> bundles are <em>skip-if-exists</em>, so user edits there <em>do</em> survive.
+<strong>Seeding.</strong> <code>index.html</code>, <code>signin.html</code>, <code>account.html</code>, and <code>docs.html</code> are seeded by jspod on first start and never overwritten — edits survive restarts, same as <code>public/links.jsonld</code> and <code>public/apps/pilot/</code>. The trade-off: upgrading jspod won't refresh a page you already have; delete the file and restart to re-seed the current stock copy. In <code>--no-auth</code> mode nothing is seeded at all — the served directory is left untouched.
 </div>
 
 <h2 id="idp">Where the IDP data lives</h2>
@@ -91,12 +91,7 @@ nav.toc a{margin-right:1em}
 <p>The account record contains a bcrypt hash of the password — not the plaintext. The signing keys are sensitive (anyone with these can mint valid tokens against your pod). JSS manages file modes on these; jspod doesn't touch them.</p>
 
 <h2 id="customize">Customize the landing page</h2>
-<p>The default landing page (<code>pod-data/index.html</code>) is owned by jspod. Edits to it are overwritten on the next start. To genuinely customize, the options are, in increasing order of effort:</p>
-<ul>
-<li>Fork jspod (clone the repo, edit <code>welcome.html</code>, run <code>./index.js</code> from the fork). All overwrites use <em>your</em> templates.</li>
-<li>Run JSS directly with your own <code>pod-data/index.html</code> pre-seeded. JSS does skip-if-exists for its own seed, so your file wins. You lose jspod's account dashboard / signin app / data browser, but you can copy any of them out of the npm package and adapt.</li>
-<li>Track <a href="https://github.com/JavaScriptSolidServer/JavaScriptSolidServer/issues/459">JSS#459</a> for a future <code>--landing-page &lt;file&gt;</code> option that would make this cleaner.</li>
-</ul>
+<p>The default landing page (<code>pod-data/index.html</code>) is seeded on first start only — just edit it, and your version survives restarts. To return to the stock page, delete <code>pod-data/index.html</code> and restart. To change the template used for <em>new</em> pods, fork jspod and edit <code>welcome.html</code>.</p>
 
 <h2 id="auth-ladder">Auth ladder</h2>
 <p>jspod ships you onto rung 1 (default <code>me</code>/<code>me</code>) and makes climbing visible. The dashboard at <code>/account.html</code> exposes a Change password form (rung 2). Passkey support (rung 3) is on the roadmap. See <a href="https://github.com/JavaScriptSolidServer/jspod/issues/6">jspod#6</a> for the full ladder framing.</p>
