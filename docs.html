@@ -70,10 +70,10 @@ nav.toc a{margin-right:1em}
 ├── <span class="label">settings/</span>         <span class="note">prefs + type indexes (JSS-seeded)</span>
 ├── <span class="label">.acl</span>              <span class="note">root container ACL — owner read/write, no public default</span>
 ├── <span class="label">.idp/</span>             <span class="note">JSS internal identity storage (see below)</span>
-└── <span class="label">.token-secret</span>     <span class="note">JWT signing secret (auto-generated, mode 0600)</span></pre>
+└── <span class="label">.token-secret</span>     <span class="note">JWT signing secret (auto-generated, mode 0600; not created with --no-auth)</span></pre>
 
 <div class="callout">
-<strong>Seeding.</strong> <code>index.html</code>, <code>signin.html</code>, <code>account.html</code>, and <code>docs.html</code> are seeded by jspod on first start and never overwritten — edits survive restarts, same as <code>public/links.jsonld</code> and <code>public/apps/pilot/</code>. The trade-off: upgrading jspod won't refresh a page you already have; delete the file and restart to re-seed the current stock copy. In <code>--no-auth</code> mode nothing is seeded at all — the served directory is left untouched.
+<strong>Seeding.</strong> <code>index.html</code>, <code>signin.html</code>, <code>account.html</code>, and <code>docs.html</code> are seeded by jspod on first start and never overwritten — edits survive restarts, same as <code>public/links.jsonld</code> and <code>public/apps/pilot/</code>. The trade-off: upgrading jspod won't refresh a page you already have; delete the file and restart to re-seed the current stock copy. In <code>--no-auth</code> mode jspod writes nothing at all — no seeded pages and no <code>.token-secret</code> (auth is bypassed, so no tokens are ever minted).
 </div>
 
 <h2 id="idp">Where the IDP data lives</h2>
