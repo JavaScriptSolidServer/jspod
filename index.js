@@ -84,7 +84,8 @@ const options = {
   provisionKeys: false,
   bootstrap: true,
   nostr: false,
-  nostrPath: '/relay'
+  nostrPath: '/relay',
+  plugins: []
 };
 
 const RUNG_1_USERNAME = 'me';
@@ -161,6 +162,8 @@ for (let i = 0; i < args.length; i++) {
       process.exit(1);
     }
     options.nostrMaxEvents = parsed;
+  } else if (arg === '--plugin') {
+    options.plugins.push(requireValue(arg, args[++i]));
   } else if (arg === '--browser') {
     const raw = requireValue(arg, args[++i]);
     if (raw !== 'json' && raw !== 'folder' && raw !== 'panes') {
@@ -196,6 +199,7 @@ for (let i = 0; i < args.length; i++) {
     console.log(chalk.green('  --nostr') + chalk.dim('                Run a Nostr relay (NIP-01) at <pod>/relay'));
     console.log(chalk.green('  --nostr-path ') + chalk.yellow('<path>') + chalk.dim('     Relay WebSocket path (default: /relay)'));
     console.log(chalk.green('  --nostr-max-events ') + chalk.yellow('<n>') + chalk.dim(' Max events kept in relay memory (default: 1000)'));
+    console.log(chalk.green('  --plugin ') + chalk.yellow('<module[@prefix]>') + chalk.dim(' Mount a JSS app plugin (repeatable)'));
     console.log(chalk.green('  --no-bootstrap') + chalk.dim('         Skip auto-install of the `default` app bundle on first run'));
     console.log(chalk.green('  -v, --version') + chalk.dim('           Show jspod version'));
     console.log(chalk.green('  --help') + chalk.dim('                  Show this help message\n'));
