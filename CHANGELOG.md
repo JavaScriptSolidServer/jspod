@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.0.51 (2026-11-16)
 
 ### Added
 
-- `--panes <urls>`: passed straight through to `jss --panes`. Requires jss 0.0.227 (#83)
+- `--panes <urls>`: passed straight through to `jss --panes`. jss 0.0.227 applies it to `--mashlib-cdn` only, so with jspod's own data browser it is accepted and reported as ignored for now (#83, #84)
+
+### Changed
+
+- Require jss 0.0.227 (was 0.0.225). This also brings in the NIP-98 hardening of jss 0.0.226: a signed write needs the method tag, a matching `u` tag and, with a body, the payload tag, and each event id is accepted once. Clients that signed with the `u` tag alone need updating
 
 ### Housekeeping
 
