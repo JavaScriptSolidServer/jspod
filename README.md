@@ -34,6 +34,7 @@ That's it. You have a working Solid pod with a passkey-capable identity provider
       --browser <style>   Data browser: folder (default) or json
       --provision-keys    Generate a Nostr-compatible owner keypair on first start
       --mcp               Enable MCP server at /mcp (agent tool surface; pairs with charlie)
+      --panes <urls>      Pane module URLs, comma-separated; passed through to jss --panes
   -v, --version           Print jspod version
       --help              Show help
 ```

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- `--panes <urls>`: passed straight through to `jss --panes`. Requires jss 0.0.227 (#83)
+
 ### Housekeeping
 
 - Removed one-off ASCII-banner dev scripts (`count-ascii.js`, `count-banner.js`, `jspod-ascii.js`, `verify-spacing.js`): referenced nowhere, never published (#75)
