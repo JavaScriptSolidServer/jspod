@@ -162,6 +162,8 @@ for (let i = 0; i < args.length; i++) {
       process.exit(1);
     }
     options.nostrMaxEvents = parsed;
+  } else if (arg === '--panes') {
+    options.panes = requireValue(arg, args[++i]);
   } else if (arg === '--plugin') {
     options.plugins.push(requireValue(arg, args[++i]));
   } else if (arg === '--browser') {
@@ -199,6 +201,7 @@ for (let i = 0; i < args.length; i++) {
     console.log(chalk.green('  --nostr') + chalk.dim('                Run a Nostr relay (NIP-01) at <pod>/relay'));
     console.log(chalk.green('  --nostr-path ') + chalk.yellow('<path>') + chalk.dim('     Relay WebSocket path (default: /relay)'));
     console.log(chalk.green('  --nostr-max-events ') + chalk.yellow('<n>') + chalk.dim(' Max events kept in relay memory (default: 1000)'));
+    console.log(chalk.green('  --panes ') + chalk.yellow('<urls>') + chalk.dim('         Pane module URLs, comma-separated; passed through to jss --panes'));
     console.log(chalk.green('  --plugin ') + chalk.yellow('<module[@prefix]>') + chalk.dim(' Mount a JSS app plugin (repeatable)'));
     console.log(chalk.green('  --no-bootstrap') + chalk.dim('         Skip auto-install of the `default` app bundle on first run'));
     console.log(chalk.green('  -v, --version') + chalk.dim('           Show jspod version'));
